@@ -1,8 +1,8 @@
 # Tool Maker Package
 
-[![CI](https://github.com/west/tool-maker/actions/workflows/ci.yml/badge.svg)](https://github.com/west/tool-maker/actions/workflows/ci.yml)
-[![PyPI version](https://img.shields.io/pypi/v/tool-maker.svg)](https://pypi.org/project/tool-maker/)
-[![Python versions](https://img.shields.io/pypi/pyversions/tool-maker.svg)](https://pypi.org/project/tool-maker/)
+[![CI](https://github.com/codewithwest/project_tool-maker/actions/workflows/ci.yml/badge.svg)](https://github.com/codewithwest/project_tool-maker/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/llm-tool-maker.svg)](https://pypi.org/project/llm-tool-maker/)
+[![Python versions](https://img.shields.io/pypi/pyversions/llm-tool-maker.svg)](https://pypi.org/project/llm-tool-maker/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An intelligent tool-making package that leverages LLMs to analyze projects and generate tools.
@@ -29,16 +29,16 @@ Tool Maker is a Python package that:
 
 ```bash
 # Install globally
-uv tool install tool-maker
+uv tool install llm-tool-maker
 
 # Or add to a project
-uv add tool-maker
+uv add llm-tool-maker
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/tool-maker.git
+git clone https://github.com/codewithwest/project_tool-maker.git
 cd tool-maker
 uv sync
 uv run tool-maker --help

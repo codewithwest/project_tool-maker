@@ -1,5 +1,5 @@
 [project]
-name = "tool-maker"
+name = "llm-tool-maker"
 version = "0.1.0"
 description = "An intelligent tool-making package that leverages LLMs to analyze projects and generate tools"
 readme = "README.md"
@@ -31,16 +31,19 @@ dependencies = [
 [project.optional-dependencies]
 flask = ["flask>=2.3.0"]
 postgres = ["psycopg2-binary>=2.9.0"]
-all = ["tool-maker[flask,postgres]"]
+all = ["llm-tool-maker[flask,postgres]"]
 
 [project.scripts]
-tool-maker = "tool_maker.cli.main:main"
+llm-tool-maker = "tool_maker.cli.main:main"
 
 [project.urls]
-Homepage = "https://github.com/codewithwest/tool-maker"
-Repository = "https://github.com/west/tool-maker"
-Documentation = "https://github.com/west/tool-maker#readme"
-Issues = "https://github.com/west/tool-maker/issues"
+Homepage = "https://github.com/codewithwest/project_tool-maker"
+Repository = "https://github.com/codewithwest/project_tool-maker"
+Documentation = "https://github.com/codewithwest/project_tool-maker#readme"
+Issues = "https://github.com/codewithwest/project_tool-maker/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tool_maker"]
 
 [build-system]
 requires = ["hatchling"]
