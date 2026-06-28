@@ -149,7 +149,7 @@ class ToolGenerator:
 
     def _fallback_name(self, request: str) -> str:
         cleaned = re.sub(r"[^a-z0-9\s]", "", request.lower())
-        words = [w for w in cleaned.split() if w and not w.startswith("a")]
+        words = [w for w in cleaned.split() if w and w not in ("a", "an", "the")]
         if not words:
             return "generated_tool"
         name = "_".join(words[:4])
