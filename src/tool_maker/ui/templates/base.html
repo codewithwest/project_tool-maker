@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tool Maker UI</title>
+<link rel="stylesheet" href="/static/style.css">
+{% block head %}{% endblock %}
+</head>
+<body>
+
+<nav class="sidebar">
+  <h1>Tool Maker</h1>
+  <a href="/" class="{% if active=='index' %}active{% endif %}">Dashboard</a>
+  <a href="/pipeline" class="{% if active=='pipeline' %}active{% endif %}">Pipeline</a>
+  <a href="/analyze" class="{% if active=='analyze' %}active{% endif %}">Analyze</a>
+  <a href="/execute" class="{% if active=='execute' %}active{% endif %}">Execute</a>
+  <a href="/provider" class="{% if active=='provider' %}active{% endif %}">Provider</a>
+  <a href="/config" class="{% if active=='config' %}active{% endif %}">Config</a>
+</nav>
+
+<main>
+{% block content %}{% endblock %}
+</main>
+
+</body>
+</html>

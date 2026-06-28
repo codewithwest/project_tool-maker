@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% set active = "index" %}
+{% block content %}
+<h2>Dashboard</h2>
+
+<div class="grid-2">
+  <div class="card">
+    <h3>Pipeline</h3>
+    <p>Full tool-making pipeline: analyse &rarr; plan &rarr; implement &rarr; test &rarr; review &rarr; finalize.</p>
+    <a href="/pipeline" class="btn">Open Pipeline →</a>
+  </div>
+  <div class="card">
+    <h3>Analyze</h3>
+    <p>Scan a Python project to discover its modules, functions, classes, and dependencies.</p>
+    <a href="/analyze" class="btn">Open Analyzer →</a>
+  </div>
+  <div class="card">
+    <h3>Execute</h3>
+    <p>Run saved tools in the isolated sandbox and inspect the output.</p>
+    <a href="/execute" class="btn">Open Executor →</a>
+  </div>
+  <div class="card">
+    <h3>Provider</h3>
+    <p>Test your LLM provider configuration with custom prompts.</p>
+    <a href="/provider" class="btn">Open Provider →</a>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Live Logs</h3>
+  <p>Real-time log output from all Tool Maker operations.</p>
+  <div class="log-viewer" id="log-viewer"></div>
+</div>
+
+<script>
+(function() {
+  const viewer = document.getElementById("log-viewer");
+  if (!viewer) return;
+  const evt = new EventSource("/api/logs/stream");
+  evt.onmessage = function(e) {
+    if (e.data === "heartbeat") return;
+    const rec = JSON.parse(e.data);
+    const div = document.createElement("div");
+    div.className = "log-entry";
+    div.innerHTML = [
+      '<span class="log-time">' + rec.time.slice(11, 19) + '</span>',
+      '<span class="log-level ' + rec.level + '">' + rec.level + '</span>',
+      '<span class="log-msg">' + escapeHtml(rec.message) + '</span>'
+    ].join("");
+    viewer.appendChild(div);
+    viewer.scrollTop = viewer.scrollHeight;
+  };
+  function escapeHtml(s) {
+    const d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+})();
+</script>
+{% endblock %}

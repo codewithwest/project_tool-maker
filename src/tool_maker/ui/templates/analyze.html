@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% set active = "analyze" %}
+{% block content %}
+<h2>Project Analyzer</h2>
+
+<div class="card">
+  <form method="POST">
+    <label for="path">Project path</label>
+    <input type="text" name="path" id="path" value="{{ path }}" placeholder="e.g. /path/to/python/project">
+    <button type="submit">Analyze</button>
+  </form>
+</div>
+
+{% if result %}
+<div class="card">
+  <h3>Analysis Results</h3>
+  {% if result.error %}
+    <p class="badge error">{{ result.error }}</p>
+  {% else %}
+    <h4>Modules</h4>
+    {% if result.modules %}
+    <table>
+      <thead><tr><th>Module</th><th>File</th><th>Type</th></tr></thead>
+      <tbody>
+      {% for m in result.modules %}
+        <tr>
+          <td><strong>{{ m.name }}</strong></td>
+          <td><code>{{ m.file }}</code></td>
+          <td><span class="badge info">{{ m.type }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p>No modules found.</p>
+    {% endif %}
+
+    <h4>Dependencies</h4>
+    {% if result.dependencies %}
+    <table>
+      <thead><tr><th>Dependency</th></tr></thead>
+      <tbody>
+      {% for dep in result.dependencies %}
+        <tr><td><code>{{ dep }}</code></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p>No dependencies found.</p>
+    {% endif %}
+
+    <h4>Entry Points</h4>
+    {% if result.entry_points %}
+    <ul>
+    {% for ep in result.entry_points %}
+      <li><code>{{ ep }}</code></li>
+    {% endfor %}
+    </ul>
+    {% else %}
+      <p>No entry points found.</p>
+    {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

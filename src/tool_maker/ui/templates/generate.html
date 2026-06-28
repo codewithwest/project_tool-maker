@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% set active = "generate" %}
+{% block content %}
+<h2>Tool Generator</h2>
+
+<div class="card">
+  <form method="POST">
+    <label for="query">Describe the tool you want</label>
+    <textarea name="query" id="query" rows="3" placeholder="e.g. a tool that counts lines of code in a directory">{{ query }}</textarea>
+    <label for="path">Project context path (optional)</label>
+    <input type="text" name="path" id="path" placeholder="e.g. /path/to/project">
+    <button type="submit">Generate Tool</button>
+  </form>
+</div>
+
+{% if tool %}
+<div class="card">
+  <h3>Generated Tool</h3>
+  <table>
+    <tr><th>Name</th><td><code>{{ tool.name }}</code></td></tr>
+    <tr><th>Description</th><td>{{ tool.description }}</td></tr>
+    <tr><th>Parameters</th><td><code>{{ tool.parameters | tojson }}</code></td></tr>
+    <tr><th>Dependencies</th><td>
+      {% if tool.dependencies %}
+        {% for dep in tool.dependencies %}<span class="badge info">{{ dep }}</span> {% endfor %}
+      {% else %}<span class="text-muted">none</span>{% endif %}
+    </td></tr>
+  </table>
+  <h4>Code</h4>
+  <pre><code>{{ tool.code }}</code></pre>
+  <form action="/execute" method="POST" target="_blank">
+    <input type="hidden" name="code" value="{{ tool.code }}">
+    <input type="hidden" name="func_name" value="{{ tool.name }}">
+    <button type="submit" class="secondary">Run in Executor →</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

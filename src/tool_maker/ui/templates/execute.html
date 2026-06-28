@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% set active = "execute" %}
+{% block head %}
+<style>
+.tool-table-wrap {
+  max-height: calc(3 * 42px + 38px);
+  overflow-y: auto;
+}
+.tool-table-wrap table { width: 100%; }
+.tool-table-wrap thead { position: sticky; top: 0; z-index: 1; }
+.tool-table-wrap thead th {
+  background: var(--surface-solid);
+  border-bottom: 1px solid var(--border);
+}
+.spinner-sm {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid rgba(168,85,247,0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}
+{% block content %}
+<h2>Tool Executor</h2>
+
+{% if file_tools %}
+<div class="card">
+  <h3>Saved Tools</h3>
+  <div class="tool-table-wrap">
+  <table>
+    <thead><tr>
+      <th>Name</th>
+      <th>Size</th>
+      <th colspan="2">Actions</th>
+    </tr></thead>
+    <tbody>
+    {% for t in file_tools %}
+    <tr>
+      <td>{{ t.name }}</td>
+      <td>{{ (t.size / 1024)|round(1) }} KB</td>
+      <td><button class="secondary" style="padding:4px 10px;font-size:12px" data-load="{{ t.path }}" data-action="run">Load &amp; Run</button></td>
+      <td><button style="padding:4px 10px;font-size:12px;background:var(--error);border-color:var(--error)" data-delete="{{ t.path }}">Delete</button></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:32px">
+  <p style="margin-bottom:16px">No saved tools found.</p>
+  <a href="/pipeline" class="button" style="display:inline-block;padding:10px 24px;text-decoration:none">Go to Pipeline</a>
+</div>
+{% endif %}
+
+{% if tools %}
+<div class="card">
+  <h3>Database Tools</h3>
+  <div class="tool-table-wrap">
+  <table>
+    <thead><tr>
+      <th>ID</th>
+      <th>Name</th>
+      <th>Description</th>
+      <th>Status</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+    {% for t in tools %}
+    <tr>
+      <td>{{ t.id }}</td>
+      <td>{{ t.name }}</td>
+      <td>{{ t.description[:60] }}{% if t.description|length > 60 %}...{% endif %}</td>
+      <td><span class="badge {% if t.status == 'final' %}success{% elif t.status == 'needs_fix' %}error{% else %}info{% endif %}">{{ t.status }}</span></td>
+      <td><button class="secondary" style="padding:4px 10px;font-size:12px" data-load-db="{{ t.id }}" data-action="run">Load &amp; Run</button></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3>Sandbox Runner</h3>
+  <div class="form-group">
+    <label for="code">Tool Code</label>
+    <textarea name="code" id="code" rows="10" placeholder="Code loads automatically when you select a tool above">{{ code }}</textarea>
+  </div>
+  <div class="inline-group">
+    <div class="form-group">
+      <label for="func_name">Function Name</label>
+      <input type="text" name="func_name" id="func_name" value="{{ func_name }}" placeholder="tool_fn">
+    </div>
+    <div class="form-group">
+      <label for="args_json">Arguments (JSON)</label>
+      <input type="text" name="args_json" id="args_json" value="{{ args_json }}" placeholder='{"x": 1, "y": 2}'>
+    </div>
+    <button type="button" id="btn-execute">Execute</button>
+    <button type="button" id="btn-test" style="background:var(--info);border-color:var(--info)" title="Run the automated test function">Run Test</button>
+    <span id="exec-spinner" style="display:none"><span class="spinner-sm"></span>running…</span>
+  </div>
+</div>
+
+<div id="result-area"></div>
+
+<script>
+(function() {
+  var codeEl = document.getElementById('code');
+  var funcEl = document.getElementById('func_name');
+  var argsEl = document.getElementById('args_json');
+  var resultArea = document.getElementById('result-area');
+  var btnExec = document.getElementById('btn-execute');
+  var btnTest = document.getElementById('btn-test');
+  var spinner = document.getElementById('exec-spinner');
+
+  // Expose to global scope so onclick handlers in dynamic HTML can reach them
+  window._codeEl = codeEl;
+  window._funcEl = funcEl;
+  window._argsEl = argsEl;
+  window._resultArea = resultArea;
+  window._btnExec = btnExec;
+  window._btnTest = btnTest;
+  window._spinner = spinner;
+  window._lastResult = null;
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function resultCard(data) {
+    window._lastResult = data;
+    var html = '<div class="card"><h3>Result</h3><div class="result-box">';
+    html += '<p><span class="key">success:</span> ';
+    html += data.success
+      ? '<span class="badge success">true</span>'
+      : '<span class="badge error">false</span>';
+    html += '</p>';
+    if (data.success && data.output !== null && data.output !== undefined) {
+      html += '<p><span class="key">output:</span> <pre style="margin-top:4px">' + esc(data.output) + '</pre></p>';
+    }
+    if (data.error) {
+      html += '<p><span class="key">error:</span> <span class="badge error">' + esc(data.error) + '</span></p>';
+    }
+    html += '</div><div style="display:flex;gap:8px;margin-top:12px">';
+    // Run Function — uses current form values via global refs
+    html += '<button class="secondary" onclick="execNow({action:\'run\',code:_codeEl.value,func_name:_funcEl.value,args_json:_argsEl.value})" title="Run the implementation function">Run Function</button>';
+    // Run Test — prepends test_ to func_name
+    html += '<button style="background:var(--info);border-color:var(--info)" onclick="execNow({action:\'run\',code:_codeEl.value,func_name:\'test_\'+_funcEl.value,args_json:\'{}\'})" title="Run automated test">Run Test</button>';
+    // Fix
+    if (!data.success && data.error) {
+      html += '<button style="background:var(--warning);border-color:var(--warning);color:#000" onclick="fixNow(_lastResult)">Fix with LLM</button>';
+    }
+    // Explain
+    html += '<button class="secondary" onclick="explainNow(_lastResult)">Explain</button>';
+    html += '</div></div>';
+    return html;
+  }
+
+  window.execNow = async function(payload) {
+    _btnExec.disabled = true;
+    _btnTest.disabled = true;
+    _spinner.style.display = 'inline';
+    try {
+      var resp = await fetch('/api/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      var data = await resp.json();
+      _resultArea.innerHTML = resultCard(data);
+    } catch(err) {
+      _resultArea.innerHTML = '<div class="card"><h3 style="color:var(--red)">Error</h3><pre>' + esc(err.message) + '</pre></div>';
+    } finally {
+      _btnExec.disabled = false;
+      _btnTest.disabled = false;
+      _spinner.style.display = 'none';
+    }
+  };
+
+  window.fixNow = async function(data) {
+    try {
+      var resp = await fetch('/api/fix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: data.code, func_name: data.func_name }),
+      });
+      var result = await resp.json();
+      if (result.fixed && result.code) {
+        _codeEl.value = result.code;
+        _resultArea.innerHTML = '<div class="card" style="border-left:3px solid var(--green)"><h3 style="color:var(--green)">&#10003; Fixed</h3><p>Tool fixed after ' + (result.attempts || '?') + ' attempt(s). Code updated above.</p></div>';
+      } else {
+        _resultArea.innerHTML = '<div class="card" style="border-left:3px solid var(--red)"><h3 style="color:var(--red)">Fix Failed</h3><pre>' + esc(result.error || 'Unknown error') + '</pre></div>';
+      }
+    } catch(err) {
+      _resultArea.innerHTML = '<div class="card"><h3 style="color:var(--red)">Error</h3><pre>' + esc(err.message) + '</pre></div>';
+    }
+  };
+
+  window.explainNow = async function(data) {
+    try {
+      var resp = await fetch('/api/explain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: data.code, func_name: data.func_name, last_result: data.success ? data.output : 'ERROR: ' + data.error }),
+      });
+      var result = await resp.json();
+      _resultArea.innerHTML = '<div class="card"><h3>Explanation</h3><div class="result-box"><pre style="white-space:pre-wrap">' + esc(result.explanation || 'No explanation') + '</pre></div></div>';
+    } catch(err) {
+      _resultArea.innerHTML = '<div class="card"><h3 style="color:var(--red)">Error</h3><pre>' + esc(err.message) + '</pre></div>';
+    }
+  };
+
+  // ── Run button ──
+  _btnExec.addEventListener('click', function() {
+    execNow({ action: 'run', code: _codeEl.value, func_name: _funcEl.value, args_json: _argsEl.value });
+  });
+
+  // ── Run Test button ──
+  _btnTest.addEventListener('click', function() {
+    execNow({ action: 'run', code: _codeEl.value, func_name: 'test_' + _funcEl.value, args_json: '{}' });
+  });
+
+  // ── Load file tool ──
+  document.querySelectorAll('[data-load]').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var resp = await fetch('/api/load', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool_file: btn.dataset.load }),
+      });
+      var data = await resp.json();
+      if (data.error) {
+        _resultArea.innerHTML = '<div class="card"><p class="error">' + esc(data.error) + '</p></div>';
+        return;
+      }
+      _codeEl.value = data.code;
+      _funcEl.value = data.func_name;
+      if (data.args_json) _argsEl.value = data.args_json;
+      execNow({ action: 'run', code: data.code, func_name: data.func_name, args_json: data.args_json || '{}' });
+    });
+  });
+
+  // ── Load DB tool ──
+  document.querySelectorAll('[data-load-db]').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var resp = await fetch('/api/load', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool_id: btn.dataset.loadDb }),
+      });
+      var data = await resp.json();
+      if (data.error) {
+        _resultArea.innerHTML = '<div class="card"><p class="error">' + esc(data.error) + '</p></div>';
+        return;
+      }
+      _codeEl.value = data.code;
+      _funcEl.value = data.func_name;
+      if (data.args_json) _argsEl.value = data.args_json;
+      execNow({ action: 'run', code: data.code, func_name: data.func_name, args_json: data.args_json || '{}' });
+    });
+  });
+
+  // ── Delete file tool ──
+  document.querySelectorAll('[data-delete]').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      if (!confirm('Delete this tool?')) return;
+      var resp = await fetch('/api/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool_file: btn.dataset.delete }),
+      });
+      var data = await resp.json();
+      if (data.success) {
+        var row = btn.closest('tr');
+        if (row) row.remove();
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

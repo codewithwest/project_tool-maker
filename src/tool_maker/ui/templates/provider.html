@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% set active = "provider" %}
+{% block content %}
+<h2>LLM Provider</h2>
+
+<div class="card">
+  <h3>Configuration</h3>
+  <div id="config-display">
+    <p>Loading...</p>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Available Models</h3>
+  <div id="models-display">
+    <p>Loading...</p>
+  </div>
+</div>
+
+<div class="card">
+  <form method="POST">
+    <label for="prompt">Test prompt</label>
+    <textarea name="prompt" id="prompt" rows="3">{{ prompt }}</textarea>
+    <button type="submit">Send</button>
+  </form>
+</div>
+
+{% if response %}
+<div class="card">
+  <h3>Response</h3>
+  <pre><code>{{ response }}</code></pre>
+</div>
+{% endif %}
+
+<script>
+fetch("/api/config")
+  .then(r => r.json())
+  .then(cfg => {
+    document.getElementById("config-display").innerHTML =
+      "<table>" +
+      "<tr><th>Provider</th><td>" + cfg.llm_provider + "</td></tr>" +
+      "<tr><th>Model</th><td>" + cfg.model + "</td></tr>" +
+      "<tr><th>API Key</th><td>" + (cfg.has_api_key ? '<span class="badge success">configured</span>' : '<span class="badge info">not needed (local)</span>') + "</td></tr>" +
+      "<tr><th>Project Path</th><td>" + (cfg.default_project_path || '<span class="text-muted">not set</span>') + "</td></tr>" +
+      "</table>";
+
+    if (cfg.models && cfg.models.length) {
+      var rows = cfg.models.map(function(m) {
+        var size = (m.size / (1024*1024*1024)).toFixed(1) + " GB";
+        return "<tr><td><code>" + m.name + "</code></td><td>" + size + "</td></tr>";
+      }).join("");
+      document.getElementById("models-display").innerHTML =
+        "<table><thead><tr><th>Model</th><th>Size</th></tr></thead><tbody>" + rows + "</tbody></table>";
+    } else {
+      document.getElementById("models-display").innerHTML =
+        '<p class="text-muted">No models found. Make sure Ollama is running at localhost:11434 and has models pulled.</p>';
+    }
+  });
+</script>
+{% endblock %}

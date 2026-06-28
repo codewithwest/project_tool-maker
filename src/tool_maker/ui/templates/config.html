@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% set active = "config" %}
+{% block content %}
+<h2>Configuration</h2>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+{% for category, message in messages %}
+<div class="flash {{ category }}">{{ message }}</div>
+{% endfor %}
+{% endif %}
+{% endwith %}
+
+<form method="post" id="config-form">
+
+<div class="card config-section">
+  <h3>LLM Provider</h3>
+    <div class="form-group">
+      <label for="llm_base_url">Ollama Base URL</label>
+      <input type="url" id="llm_base_url" name="llm_base_url"
+             value="{{ llm_base_url }}">
+    </div>
+    <div class="form-group">
+      <label for="model">Model</label>
+      <select id="model" name="model">
+        {% for m in models %}
+        <option value="{{ m.name }}" {% if m.name == model %}selected{% endif %}>
+          {{ m.name }} ({{ (m.size / 1e9)|round(1) }} GB)
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+</div>
+
+<div class="card config-section">
+  <h3>Workspace</h3>
+    <div class="form-group">
+      <label for="output_dir">Output Directory</label>
+      <input type="text" id="output_dir" name="output_dir"
+             value="{{ output_dir }}">
+      <p class="help-text">Where generated tool files are saved.</p>
+    </div>
+    <div class="form-group">
+      <label for="extra_whitelist">Extra Sandbox Whitelist</label>
+      <input type="text" id="extra_whitelist" name="extra_whitelist"
+             value="{{ extra_whitelist }}">
+      <p class="help-text">Comma-separated module names allowed in the sandbox.</p>
+    </div>
+</div>
+
+<div class="card config-section">
+  <h3>Database</h3>
+    <div class="form-group">
+      <label for="db_dsn">Database DSN</label>
+      <input type="text" id="db_dsn" name="db_dsn"
+             value="{{ db_dsn }}">
+      <p class="help-text">PostgreSQL connection string for the tool-maker store.</p>
+    </div>
+</div>
+
+<div class="card config-section" style="display:flex; gap:8px;">
+    <button type="submit">Save Settings</button>
+</div>
+
+</form>
+
+<h3>Current Config File</h3>
+<div class="card">
+  <pre><code>{{ config | tojson(indent=2) }}</code></pre>
+</div>
+
+<h3>Database Migrations</h3>
+<div class="card" id="migration-status">
+  <p>Loading...</p>
+</div>
+
+<script>
+async function loadStatus() {
+  try {
+    const r = await fetch('/api/db/migrations');
+    const data = await r.json();
+    let html = '<table><tr><th>#</th><th>Migration</th><th>Status</th></tr>';
+    data.migrations.forEach((m, i) => {
+      const badge = m.applied ? '<span class="badge success">applied</span>'
+                              : '<span class="badge info">pending</span>';
+      html += `<tr><td>${i+1}</td><td>${m.name}</td><td>${badge}</td></tr>`;
+    });
+    html += '</table>';
+    if (data.pending > 0) {
+      html += `<div style="margin-top:12px"><button onclick="runMigrations()">Apply ${data.pending} pending</button></div>`;
+    }
+    document.getElementById('migration-status').innerHTML = html;
+  } catch(e) {
+    document.getElementById('migration-status').innerHTML = '<p><span class="badge error">DB not available</span></p>';
+  }
+}
+
+async function runMigrations() {
+  const btn = document.querySelector('#migration-status button');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  try {
+    const r = await fetch('/api/db/migrate', { method: 'POST' });
+    const data = await r.json();
+    if (data.applied && data.applied.length) {
+      showFlash('success', 'Applied: ' + data.applied.join(', '));
+    } else {
+      showFlash('info', 'No pending migrations');
+    }
+  } catch(e) {
+    showFlash('error', 'Migration failed: ' + e.message);
+  }
+  loadStatus();
+}
+
+function showFlash(category, message) {
+  const div = document.createElement('div');
+  div.className = 'flash ' + category;
+  div.textContent = message;
+  const target = document.querySelector('h2');
+  const next = target.nextElementSibling;
+  if (next && next.classList.contains('flash')) {
+    next.replaceWith(div);
+  } else {
+    target.insertAdjacentElement('afterend', div);
+  }
+  setTimeout(() => div.remove(), 4000);
+}
+
+loadStatus();
+</script>
+{% endblock %}
