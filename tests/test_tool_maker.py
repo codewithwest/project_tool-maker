@@ -85,7 +85,14 @@ def adder(a, b):
 
     def test_create_and_execute_tool_success(self):
         tm = ToolMaker(output_dir=None)
-        tool = tm.create_tool("make an adder that adds two numbers")
+        mock_code = (
+            "def add_two_numbers(a: int, b: int) -> int:\n"
+            '    """Add two numbers together."""\n'
+            "    return a + b\n"
+        )
+        with patch.object(tm.llm_provider, "generate",
+                          return_value=f"```python\n{mock_code}\n```"):
+            tool = tm.create_tool("make an adder that adds two numbers")
         assert tool is not None
         assert isinstance(tool, Tool)
         assert "adder" in tool.name or "add" in tool.name
