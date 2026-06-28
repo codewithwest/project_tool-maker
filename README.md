@@ -1,5 +1,10 @@
 # Tool Maker Package
 
+[![CI](https://github.com/west/tool-maker/actions/workflows/ci.yml/badge.svg)](https://github.com/west/tool-maker/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/tool-maker.svg)](https://pypi.org/project/tool-maker/)
+[![Python versions](https://img.shields.io/pypi/pyversions/tool-maker.svg)](https://pypi.org/project/tool-maker/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 An intelligent tool-making package that leverages LLMs to analyze projects and generate tools.
 
 ## Overview
