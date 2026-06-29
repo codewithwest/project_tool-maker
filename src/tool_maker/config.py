@@ -30,6 +30,8 @@ def _get_config_path() -> Path:
 class ToolMakerConfigFile:
     output_dir: str = "./generated_tools"
     extra_whitelist: List[str] = field(default_factory=list)
+    approved_deps: List[str] = field(default_factory=list)
+    auto_approve_deps: bool = False
 
     @classmethod
     def load(cls) -> "ToolMakerConfigFile":
@@ -45,8 +47,19 @@ class ToolMakerConfigFile:
             return cls()
 
     def save(self) -> None:
-        """Save is a no-op — config is stored in the DB now."""
-        pass
+        path = _get_config_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "output_dir": self.output_dir,
+            "extra_whitelist": self.extra_whitelist,
+            "approved_deps": self.approved_deps,
+            "auto_approve_deps": self.auto_approve_deps,
+        }
+        try:
+            path.write_text(json.dumps(data, indent=2))
+            logger.debug("Config saved to %s", path)
+        except Exception as e:
+            logger.warning("Failed to save config: %s", e)
 
     def add_whitelist(self, *modules: str) -> bool:
         added = False
@@ -55,3 +68,10 @@ class ToolMakerConfigFile:
                 self.extra_whitelist.append(m)
                 added = True
         return added
+
+    def approve_dep(self, module_name: str) -> bool:
+        if module_name not in self.approved_deps:
+            self.approved_deps.append(module_name)
+            self.save()
+            return True
+        return False

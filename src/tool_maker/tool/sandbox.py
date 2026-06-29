@@ -7,12 +7,15 @@ dynamically escaping the sandbox.
 """
 
 import json
+import logging
 import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any, List, Optional
+
+logger = logging.getLogger(__name__)
 
 SANDBOX_TIMEOUT_SECONDS = 10
 
@@ -80,10 +83,11 @@ WHITELISTED_MODULES = [
 ]
 
 SAFE_BUILTIN_NAMES = [
-    "abs", "all", "any", "bool", "dict", "enumerate", "filter", "float",
-    "int", "isinstance", "len", "list", "map", "max", "min", "range",
-    "reversed", "round", "set", "slice", "sorted", "str", "sum", "tuple",
-    "zip", "True", "False", "None", "Exception", "ValueError", "TypeError",
+    "abs", "all", "any", "bool", "callable", "dict", "enumerate", "filter",
+    "float", "getattr", "hasattr", "int", "isinstance", "len", "list", "map",
+    "max", "min", "print", "range", "reversed", "round", "set", "setattr",
+    "slice", "sorted", "str", "sum", "tuple", "type", "zip",
+    "True", "False", "None", "Exception", "ValueError", "TypeError",
     "KeyError", "IndexError", "StopIteration", "RuntimeError", "OSError",
     "ZeroDivisionError", "FileNotFoundError", "NotImplementedError",
     "AttributeError", "ImportError",
@@ -109,7 +113,10 @@ def _safe_import(name, *args, **kwargs):
     base = name.split('.')[0]
     if base not in _allowed:
         raise ImportError(f"blocked: {{name}}")
-    return __import__(name, *args, **kwargs)
+    try:
+        return __import__(name, *args, **kwargs)
+    except ImportError:
+        raise ImportError(f"missing-dep: {{name}}")
 
 _safe_builtins["__import__"] = _safe_import
 _globals = {{
@@ -132,15 +139,21 @@ for _mod_name in list(sys.modules):
     if _base not in _allowed and _base not in _always_keep and _base[0] != '_':
         sys.modules.pop(_mod_name, None)
 
+def _sandbox_out(data):
+    sys.stdout.flush()
+    sys.stderr.flush()
+    print("##SBX##" + json.dumps(data))
+    sys.stdout.flush()
+
 _code = {code!r}
 try:
     exec(_code, _globals)
 except Exception as _e:
-    print(json.dumps({{"ok": False, "error": str(_e)}}))
+    _sandbox_out({{"ok": False, "error": str(_e)}})
     sys.exit(0)
 
 if {func_name!r} not in _globals:
-    print(json.dumps({{"ok": False, "error": "fn not found"}}))
+    _sandbox_out({{"ok": False, "error": "fn not found"}})
     sys.exit(0)
 
 _func = _globals[{func_name!r}]
@@ -148,9 +161,9 @@ _args_ = {args_json!r}
 
 try:
     _res = _func(**_args_)
-    print(json.dumps({{"ok": True, "result": _res}}))
+    _sandbox_out({{"ok": True, "result": _res}})
 except Exception as _e:
-    print(json.dumps({{"ok": False, "error": str(_e)}}))
+    _sandbox_out({{"ok": False, "error": str(_e)}})
 """
 
 
@@ -183,6 +196,8 @@ def execute_safe(
     function_name: str,
     timeout: int = SANDBOX_TIMEOUT_SECONDS,
     extra_whitelist: Optional[List[str]] = None,
+    approved_deps: Optional[List[str]] = None,
+    auto_approve_deps: bool = False,
     **kwargs: Any,
 ) -> Any:
     """Execute a tool function in a subprocess sandbox.
@@ -191,12 +206,18 @@ def execute_safe(
     ``python -I`` (isolated mode). Output is communicated via JSON
     on stdout. If execution exceeds *timeout* the subprocess is killed.
 
+    If the sandbox reports a missing third-party dependency, this function
+    attempts to pip install it and retries (up to 3 times).
+
     Args:
         code: Python source code containing the function.
         function_name: Name of the function to call.
         timeout: Max seconds before killing the subprocess.
         extra_whitelist: Additional module names to allow beyond the
                          built-in whitelist (e.g. user-configured ones).
+        approved_deps: List of module names the user has approved for
+                       auto-installation.
+        auto_approve_deps: If True, install missing deps without prompting.
 
     Returns:
         The return value of the executed function.
@@ -213,57 +234,90 @@ def execute_safe(
             if m not in whitelist:
                 whitelist.append(m)
 
-    runner_code = _RUNNER_TEMPLATE.format(
-        builtin_keep=SAFE_BUILTIN_NAMES,
-        whitelist=whitelist,
-        code=code,
-        func_name=function_name,
-        args_json=safe_kwargs,
-    )
+    approved = set(approved_deps or [])
 
-    tmp = tempfile.NamedTemporaryFile(
-        mode="w",
-        suffix=".py",
-        prefix="sandbox_",
-        delete=False,
-    )
-    try:
-        tmp.write(runner_code)
-        tmp.close()
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        runner_code = _RUNNER_TEMPLATE.format(
+            builtin_keep=SAFE_BUILTIN_NAMES,
+            whitelist=whitelist,
+            code=code,
+            func_name=function_name,
+            args_json=safe_kwargs,
+        )
 
-        proc = subprocess.Popen(
-            [sys.executable, "-I", tmp.name],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".py",
+            prefix="sandbox_",
+            delete=False,
         )
         try:
-            stdout, stderr = proc.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait()
-            raise SandboxTimeout(
-                f"Execution timed out after {timeout}s"
+            tmp.write(runner_code)
+            tmp.close()
+
+            proc = subprocess.Popen(
+                [sys.executable, "-I", tmp.name],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
             )
+            try:
+                stdout, stderr = proc.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                raise SandboxTimeout(
+                    f"Execution timed out after {timeout}s"
+                )
 
-        if proc.returncode != 0:
-            msg = stderr.strip() or f"Process exited with code {proc.returncode}"
-            raise SandboxError(msg)
+            if proc.returncode != 0:
+                msg = stderr.strip() or f"Process exited with code {proc.returncode}"
+                raise SandboxError(msg)
 
-        try:
-            result = json.loads(stdout.strip())
-        except json.JSONDecodeError as e:
-            raise SandboxError(
-                f"Could not parse sandbox output: {e}\nstdout: {stdout[:500]}"
-            )
+            try:
+                # Find the ##SBX## marker to handle stray tool stdout
+                sbx_marker = "##SBX##"
+                idx = stdout.rfind(sbx_marker)
+                if idx == -1:
+                    raise ValueError("no sandbox marker found")
+                payload = stdout[idx + len(sbx_marker):].strip()
+                result = json.loads(payload)
+            except Exception as e:
+                raise SandboxError(
+                    f"Could not parse sandbox output: {e}\nstdout: {stdout[:500]}"
+                )
 
-        if not result.get("ok"):
-            raise SandboxError(result.get("error", "Unknown sandbox error"))
+            if result.get("ok"):
+                return result["result"]
 
-        return result["result"]
+            error = result.get("error", "Unknown sandbox error")
 
-    finally:
-        try:
-            os.unlink(tmp.name)
-        except OSError:
-            pass
+            # Check if this is a missing dependency we can auto-install
+            if error.startswith("missing-dep:"):
+                mod = error.split(":", 1)[1].strip()
+                if mod in whitelist:
+                    if mod in approved or auto_approve_deps:
+                        from tool_maker.tool.deps import install as _install_dep
+                        ok = _install_dep(mod)
+                        if ok:
+                            whitelist.append(mod) if mod not in whitelist else None
+                            logger.info(
+                                "Installed '%s', retrying sandbox (attempt %d/%d)",
+                                mod, attempt, max_retries,
+                            )
+                            continue
+                    logger.warning(
+                        "Missing dep '%s' not approved — skipping install", mod,
+                    )
+
+            # Non-retryable error
+            raise SandboxError(error)
+
+        finally:
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass
+
+    raise SandboxError(f"Sandbox failed after {max_retries} retries")

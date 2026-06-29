@@ -85,6 +85,8 @@ class ToolMaker:
         self.tool_generator = ToolGenerator(self.project_scanner)
         self.tool_executor = ToolExecutor(
             extra_whitelist=self.file_config.extra_whitelist,
+            approved_deps=self.file_config.approved_deps,
+            auto_approve_deps=self.file_config.auto_approve_deps,
         )
         self.planner = Planner(llm_provider=self.llm_provider)
         self.plan_validator = PlanValidator(llm_provider=self.llm_provider)
@@ -331,6 +333,17 @@ class ToolMaker:
                 for m in extra:
                     if m not in self.file_config.extra_whitelist:
                         self.file_config.extra_whitelist.append(m)
+            if db.get("approved_deps"):
+                extra = [
+                    m.strip()
+                    for m in db["approved_deps"].split(",")
+                    if m.strip()
+                ]
+                for m in extra:
+                    if m not in self.file_config.approved_deps:
+                        self.file_config.approved_deps.append(m)
+            if db.get("auto_approve_deps") == "true":
+                self.file_config.auto_approve_deps = True
             if db.get("model") and "model" not in self._explicit_config:
                 self.config.model = db["model"]
             if db.get("llm_base_url") and "ollama_base_url" not in \

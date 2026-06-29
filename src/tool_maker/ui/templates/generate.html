@@ -1,37 +1,57 @@
 {% extends "base.html" %}
 {% set active = "generate" %}
 {% block content %}
-<h2>Tool Generator</h2>
+<h2 class="text-2xl font-bold mb-6">Tool Generator</h2>
 
-<div class="card">
-  <form method="POST">
-    <label for="query">Describe the tool you want</label>
-    <textarea name="query" id="query" rows="3" placeholder="e.g. a tool that counts lines of code in a directory">{{ query }}</textarea>
-    <label for="path">Project context path (optional)</label>
-    <input type="text" name="path" id="path" placeholder="e.g. /path/to/project">
-    <button type="submit">Generate Tool</button>
+<div class="bg-gray-900/60 border border-gray-800 rounded-xl p-6 mb-6">
+  <form method="POST" class="space-y-4">
+    <div>
+      <label for="query" class="block text-sm font-medium text-gray-300 mb-1">Describe the tool you want</label>
+      <textarea name="query" id="query" rows="3" placeholder="e.g. a tool that counts lines of code in a directory"
+                class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-colors placeholder-gray-500">{{ query }}</textarea>
+    </div>
+    <div>
+      <label for="path" class="block text-sm font-medium text-gray-300 mb-1">Project context path (optional)</label>
+      <input type="text" name="path" id="path" placeholder="e.g. /path/to/project"
+             class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-colors placeholder-gray-500">
+    </div>
+    <button type="submit" class="bg-accent/20 text-accent border border-accent/30 rounded-lg px-5 py-2.5 text-sm font-medium hover:bg-accent/30 transition-colors">Generate Tool</button>
   </form>
 </div>
 
 {% if tool %}
-<div class="card">
-  <h3>Generated Tool</h3>
-  <table>
-    <tr><th>Name</th><td><code>{{ tool.name }}</code></td></tr>
-    <tr><th>Description</th><td>{{ tool.description }}</td></tr>
-    <tr><th>Parameters</th><td><code>{{ tool.parameters | tojson }}</code></td></tr>
-    <tr><th>Dependencies</th><td>
-      {% if tool.dependencies %}
-        {% for dep in tool.dependencies %}<span class="badge info">{{ dep }}</span> {% endfor %}
-      {% else %}<span class="text-muted">none</span>{% endif %}
-    </td></tr>
+<div class="bg-gray-900/60 border border-gray-800 rounded-xl p-6">
+  <h3 class="text-lg font-semibold text-gray-200 mb-4">Generated Tool</h3>
+  <table class="w-full text-sm mb-4">
+    <tbody class="divide-y divide-gray-800">
+      <tr>
+        <th class="text-left py-2 pr-4 text-gray-400 font-medium w-32">Name</th>
+        <td class="py-2"><code class="text-accent">{{ tool.name }}</code></td>
+      </tr>
+      <tr>
+        <th class="text-left py-2 pr-4 text-gray-400 font-medium">Description</th>
+        <td class="py-2 text-gray-300">{{ tool.description }}</td>
+      </tr>
+      <tr>
+        <th class="text-left py-2 pr-4 text-gray-400 font-medium">Parameters</th>
+        <td class="py-2"><code class="text-xs text-gray-400">{{ tool.parameters | tojson }}</code></td>
+      </tr>
+      <tr>
+        <th class="text-left py-2 pr-4 text-gray-400 font-medium">Dependencies</th>
+        <td class="py-2">
+          {% if tool.dependencies %}
+            {% for dep in tool.dependencies %}<span class="inline-flex items-center rounded-full bg-blue-900/30 text-blue-400 px-2.5 py-0.5 text-xs font-medium mr-1">{{ dep }}</span> {% endfor %}
+          {% else %}<span class="text-gray-500 text-sm">none</span>{% endif %}
+        </td>
+      </tr>
+    </tbody>
   </table>
-  <h4>Code</h4>
-  <pre><code>{{ tool.code }}</code></pre>
+  <h4 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Code</h4>
+  <pre class="bg-gray-950 border border-gray-800 rounded-lg p-4 overflow-x-auto text-xs text-gray-300 mb-4"><code>{{ tool.code }}</code></pre>
   <form action="/execute" method="POST" target="_blank">
     <input type="hidden" name="code" value="{{ tool.code }}">
     <input type="hidden" name="func_name" value="{{ tool.name }}">
-    <button type="submit" class="secondary">Run in Executor →</button>
+    <button type="submit" class="bg-gray-800 text-gray-200 border border-gray-700 rounded-lg px-5 py-2.5 text-sm font-medium hover:bg-gray-700 transition-colors">Run in Executor →</button>
   </form>
 </div>
 {% endif %}

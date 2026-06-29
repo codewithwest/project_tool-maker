@@ -178,6 +178,17 @@ def list_tools(status: str = "") -> List[Dict[str, Any]]:
             return [_row_to_dict(cur, r) for r in cur.fetchall()]
 
 
+def delete_tool(tool_id: int) -> bool:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM executions WHERE tool_id = %s", (tool_id,))
+            cur.execute("DELETE FROM reviews WHERE tool_id = %s", (tool_id,))
+            cur.execute("DELETE FROM tools WHERE id = %s", (tool_id,))
+            deleted = cur.rowcount > 0
+        conn.commit()
+        return deleted
+
+
 def update_tool_status(tool_id: int, status: str) -> None:
     with get_connection() as conn:
         with conn.cursor() as cur:

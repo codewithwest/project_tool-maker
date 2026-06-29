@@ -1,34 +1,67 @@
 {% extends "base.html" %}
 {% set active = "provider" %}
+{% block head %}
+<style>
+html { scroll-behavior: smooth; }
+.hero-glow {
+  position: absolute; inset: 0;
+  opacity: 0.20;
+  background: radial-gradient(circle at top right, #a855f7, transparent 40%);
+  pointer-events: none;
+}
+#provider-response { animation: fadeUp .4s ease; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+</style>
+{% endblock %}
 {% block content %}
-<h2>LLM Provider</h2>
-
-<div class="card">
-  <h3>Configuration</h3>
-  <div id="config-display">
-    <p>Loading...</p>
+<div class="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-8 mb-8">
+  <div class="hero-glow"></div>
+  <div class="relative">
+    <div class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs bg-violet-500/10 text-violet-300 mb-4">
+      🤖 LLM Provider
+    </div>
+    <h1 class="text-3xl font-bold text-white mb-2">Test Provider</h1>
+    <p class="text-zinc-400 mb-6 max-w-xl">
+      View your current provider configuration and send test prompts to verify connectivity.
+    </p>
   </div>
 </div>
 
-<div class="card">
-  <h3>Available Models</h3>
-  <div id="models-display">
-    <p>Loading...</p>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+  <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
+    <h3 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">Configuration</h3>
+    <div id="config-display">
+      <p class="text-sm text-zinc-500">Loading...</p>
+    </div>
+  </div>
+  <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
+    <h3 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">Available Models</h3>
+    <div id="models-display">
+      <p class="text-sm text-zinc-500">Loading...</p>
+    </div>
   </div>
 </div>
 
-<div class="card">
+<div class="bg-white/[0.03] border border-white/10 rounded-2xl p-6 mb-8">
+  <h3 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">Send Test Prompt</h3>
   <form method="POST">
-    <label for="prompt">Test prompt</label>
-    <textarea name="prompt" id="prompt" rows="3">{{ prompt }}</textarea>
-    <button type="submit">Send</button>
+    <div class="mb-4">
+      <textarea name="prompt" id="prompt" rows="3" placeholder="Enter a test prompt for the LLM..."
+                class="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all">{{ prompt }}</textarea>
+    </div>
+    <button type="submit" class="bg-violet-600 hover:bg-violet-500 text-white rounded-xl px-7 py-3 text-sm font-semibold transition-all">
+      Send
+    </button>
   </form>
 </div>
 
 {% if response %}
-<div class="card">
-  <h3>Response</h3>
-  <pre><code>{{ response }}</code></pre>
+<div id="provider-response" class="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="text-lg">💬</span>
+    <h3 class="text-sm font-semibold text-zinc-300">Response</h3>
+  </div>
+  <pre class="bg-black/40 border border-white/5 rounded-xl p-5 overflow-x-auto text-xs text-zinc-300 leading-relaxed"><code>{{ response }}</code></pre>
 </div>
 {% endif %}
 
@@ -37,23 +70,22 @@ fetch("/api/config")
   .then(r => r.json())
   .then(cfg => {
     document.getElementById("config-display").innerHTML =
-      "<table>" +
-      "<tr><th>Provider</th><td>" + cfg.llm_provider + "</td></tr>" +
-      "<tr><th>Model</th><td>" + cfg.model + "</td></tr>" +
-      "<tr><th>API Key</th><td>" + (cfg.has_api_key ? '<span class="badge success">configured</span>' : '<span class="badge info">not needed (local)</span>') + "</td></tr>" +
-      "<tr><th>Project Path</th><td>" + (cfg.default_project_path || '<span class="text-muted">not set</span>') + "</td></tr>" +
-      "</table>";
+      '<div class="space-y-2">' +
+      '<div class="flex justify-between py-2 border-b border-white/5"><span class="text-xs text-zinc-500">Provider</span><span class="text-sm text-white">' + cfg.llm_provider + '</span></div>' +
+      '<div class="flex justify-between py-2 border-b border-white/5"><span class="text-xs text-zinc-500">Model</span><span class="text-sm text-white">' + cfg.model + '</span></div>' +
+      '<div class="flex justify-between py-2"><span class="text-xs text-zinc-500">API Key</span><span class="text-sm">' + (cfg.has_api_key ? '<span class="inline-flex items-center rounded-full bg-green-500/10 text-green-400 px-2.5 py-0.5 text-xs font-medium">configured</span>' : '<span class="inline-flex items-center rounded-full bg-violet-500/10 text-violet-300 px-2.5 py-0.5 text-xs font-medium">not needed (local)</span>') + '</span></div>' +
+      '</div>';
 
     if (cfg.models && cfg.models.length) {
       var rows = cfg.models.map(function(m) {
         var size = (m.size / (1024*1024*1024)).toFixed(1) + " GB";
-        return "<tr><td><code>" + m.name + "</code></td><td>" + size + "</td></tr>";
+        return "<tr class='hover:bg-white/[0.02]'><td class='py-2.5 pr-4'><code class='text-violet-300 text-sm'>" + m.name + "</code></td><td class='py-2.5 text-zinc-400 text-sm'>" + size + "</td></tr>";
       }).join("");
       document.getElementById("models-display").innerHTML =
-        "<table><thead><tr><th>Model</th><th>Size</th></tr></thead><tbody>" + rows + "</tbody></table>";
+        '<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="border-b border-white/5"><th class="text-left py-2.5 pr-4 text-zinc-500 font-medium">Model</th><th class="text-left py-2.5 text-zinc-500 font-medium">Size</th></tr></thead><tbody class="divide-y divide-white/5">' + rows + '</tbody></table></div>';
     } else {
       document.getElementById("models-display").innerHTML =
-        '<p class="text-muted">No models found. Make sure Ollama is running at localhost:11434 and has models pulled.</p>';
+        '<p class="text-sm text-zinc-500">No models found. Make sure Ollama is running at localhost:11434 and has models pulled.</p>';
     }
   });
 </script>

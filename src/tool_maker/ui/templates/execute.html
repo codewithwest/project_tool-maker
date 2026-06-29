@@ -2,112 +2,223 @@
 {% set active = "execute" %}
 {% block head %}
 <style>
-.tool-table-wrap {
-  max-height: calc(3 * 42px + 38px);
-  overflow-y: auto;
+body { overflow: hidden; }
+main { max-width: none !important; width: calc(100vw - 256px) !important; height: 100vh !important; padding: 0 !important; overflow: hidden; }
+
+/* sidebar */
+.tool-sidebar {
+  width: 280px;
+  display: flex; flex-direction: column; gap: 16px;
+  padding: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,.02), transparent);
+  border-right: 1px solid rgba(255,255,255,.06);
 }
-.tool-table-wrap table { width: 100%; }
-.tool-table-wrap thead { position: sticky; top: 0; z-index: 1; }
-.tool-table-wrap thead th {
-  background: var(--surface-solid);
-  border-bottom: 1px solid var(--border);
+.section-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #52525b; padding: 0 4px 8px; }
+.tool-card {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 14px; border-radius: 14px; background: #111111;
+  border: 1px solid rgba(255,255,255,.04);
+  transition: all .15s;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
 }
-.spinner-sm {
-  display: inline-block;
-  width: 14px; height: 14px;
-  border: 2px solid rgba(168,85,247,0.2);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-  vertical-align: middle;
-  margin-right: 6px;
+.tool-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(168,85,247,.3);
+  background: rgba(168,85,247,.06);
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+.tool-card .name { font-size: 13px; color: #e4e4e7; font-weight: 500; }
+.tool-card .meta { font-size: 11px; color: #52525b; }
+.tool-card .load-btn { font-size: 10px; padding: 4px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.08); color: #a1a1aa; transition: all .15s; }
+.tool-card:hover .load-btn { border-color: rgba(168,85,247,.3); color: #c4b5fd; }
+.tool-card .del-btn { font-size: 10px; padding: 4px 8px; border-radius: 8px; color: #52525b; transition: all .15s; }
+.tool-card .del-btn:hover { color: #f87171; }
+
+/* editor */
+.editor-shell { height: 100%; border-radius: 20px; overflow: hidden; background: #070707; border: 1px solid rgba(255,255,255,.06); display: flex; flex-direction: column; }
+.editor-top {
+  height: 44px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px; background: #0f0f11; border-bottom: 1px solid rgba(255,255,255,.05); flex-shrink: 0;
+}
+.editor-dots { display: flex; gap: 6px; }
+.editor-dots span { width: 9px; height: 9px; border-radius: 50%; background: #27272a; }
+.editor-dots span:nth-child(1) { background: #ef4444; }
+.editor-dots span:nth-child(2) { background: #eab308; }
+.editor-dots span:nth-child(3) { background: #22c55e; }
+
+/* command bar */
+.command-bar { display: flex; gap: 8px; }
+.command-bar button { height: 38px; padding: 0 16px; border-radius: 12px; font-size: 12px; font-weight: 600; transition: all .15s; white-space: nowrap; }
+.primary-btn {
+  background: linear-gradient(90deg, #7c3aed, #a855f7);
+  color: #fff;
+  box-shadow: 0 8px 32px rgba(168,85,247,.25);
+}
+.primary-btn:hover { box-shadow: 0 8px 40px rgba(168,85,247,.4); transform: translateY(-1px); }
+.ghost-btn { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); color: #a1a1aa; }
+.ghost-btn:hover { background: rgba(255,255,255,.08); color: #e4e4e7; }
+
+/* result tabs */
+.result-tabs { display: flex; gap: 2px; padding: 0 0 8px; border-bottom: 1px solid rgba(255,255,255,.05); flex-shrink: 0; }
+.result-tab { font-size: 11px; padding: 6px 14px; border-radius: 8px; color: #52525b; cursor: pointer; transition: all .15s; background: transparent; border: none; font-weight: 500; }
+.result-tab:hover { color: #a1a1aa; background: rgba(255,255,255,.04); }
+.result-tab.active { color: #c4b5fd; background: rgba(168,85,247,.1); }
+.result-content { min-height: 0; overflow-y: auto; }
+.result-content::-webkit-scrollbar { width: 4px; }
+.result-content::-webkit-scrollbar-track { background: transparent; }
+.result-content::-webkit-scrollbar-thumb { background: #27272a; border-radius: 2px; }
+
+/* result card */
+.result-card { padding: 16px; border-radius: 16px; animation: fadeUp .3s ease; }
+.result-card.success { background: linear-gradient(180deg, rgba(34,197,94,.06), transparent); border: 1px solid rgba(34,197,94,.18); }
+.result-card.fail { background: linear-gradient(180deg, rgba(239,68,68,.06), transparent); border: 1px solid rgba(239,68,68,.18); }
+.result-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.status-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+.status-badge.ok { color: #22c55e; }
+.status-badge.err { color: #f87171; }
+.timing { font-size: 11px; color: #52525b; font-family: 'SF Mono', monospace; }
+
+/* pulse loader */
+.pulse-loader { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 0; gap: 12px; }
+.pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: #a855f7; animation: pulseAnim 1s infinite; }
+@keyframes pulseAnim { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .3; transform: scale(.8); } }
+
+/* empty state */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 0; gap: 8px; }
+.empty-state .icon { font-size: 32px; }
+.empty-state h3 { font-size: 14px; color: #e4e4e7; font-weight: 600; }
+.empty-state p { font-size: 12px; color: #52525b; }
+
+@keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+/* scrollbar for sidebar */
+.tool-scroll { overflow-y: auto; min-height: 0; }
+.tool-scroll::-webkit-scrollbar { width: 3px; }
+.tool-scroll::-webkit-scrollbar-track { background: transparent; }
+.tool-scroll::-webkit-scrollbar-thumb { background: #27272a; border-radius: 2px; }
+
+/* collapsible */
+.collapsible-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+.collapsible-header:hover { color: #a1a1aa; }
+.collapsible-header .chevron { transition: transform .2s; }
+.collapsible-section.collapsed .chevron { transform: rotate(-90deg); }
+.collapsible-section.collapsed > div:not(.collapsible-header) { display: none; }
 </style>
 {% endblock %}
 {% block content %}
-<h2>Tool Executor</h2>
+<div class="flex h-full overflow-hidden">
 
-{% if file_tools %}
-<div class="card">
-  <h3>Saved Tools</h3>
-  <div class="tool-table-wrap">
-  <table>
-    <thead><tr>
-      <th>Name</th>
-      <th>Size</th>
-      <th colspan="2">Actions</th>
-    </tr></thead>
-    <tbody>
-    {% for t in file_tools %}
-    <tr>
-      <td>{{ t.name }}</td>
-      <td>{{ (t.size / 1024)|round(1) }} KB</td>
-      <td><button class="secondary" style="padding:4px 10px;font-size:12px" data-load="{{ t.path }}" data-action="run">Load &amp; Run</button></td>
-      <td><button style="padding:4px 10px;font-size:12px;background:var(--error);border-color:var(--error)" data-delete="{{ t.path }}">Delete</button></td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
-</div>
-{% else %}
-<div class="card" style="text-align:center;padding:32px">
-  <p style="margin-bottom:16px">No saved tools found.</p>
-  <a href="/pipeline" class="button" style="display:inline-block;padding:10px 24px;text-decoration:none">Go to Pipeline</a>
-</div>
-{% endif %}
-
-{% if tools %}
-<div class="card">
-  <h3>Database Tools</h3>
-  <div class="tool-table-wrap">
-  <table>
-    <thead><tr>
-      <th>ID</th>
-      <th>Name</th>
-      <th>Description</th>
-      <th>Status</th>
-      <th></th>
-    </tr></thead>
-    <tbody>
-    {% for t in tools %}
-    <tr>
-      <td>{{ t.id }}</td>
-      <td>{{ t.name }}</td>
-      <td>{{ t.description[:60] }}{% if t.description|length > 60 %}...{% endif %}</td>
-      <td><span class="badge {% if t.status == 'final' %}success{% elif t.status == 'needs_fix' %}error{% else %}info{% endif %}">{{ t.status }}</span></td>
-      <td><button class="secondary" style="padding:4px 10px;font-size:12px" data-load-db="{{ t.id }}" data-action="run">Load &amp; Run</button></td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
-</div>
-{% endif %}
-
-<div class="card">
-  <h3>Sandbox Runner</h3>
-  <div class="form-group">
-    <label for="code">Tool Code</label>
-    <textarea name="code" id="code" rows="10" placeholder="Code loads automatically when you select a tool above">{{ code }}</textarea>
-  </div>
-  <div class="inline-group">
-    <div class="form-group">
-      <label for="func_name">Function Name</label>
-      <input type="text" name="func_name" id="func_name" value="{{ func_name }}" placeholder="tool_fn">
+  <!-- Sidebar -->
+  <div class="tool-sidebar shrink-0">
+    <div class="collapsible-section">
+      <div class="section-title collapsible-header" data-target="saved-list">
+        Saved Tools
+        <svg class="chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 4l3 3 3-3" stroke="#52525b" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      {% if file_tools %}
+      <div id="saved-list" class="tool-scroll" style="max-height:calc(50vh - 80px)">
+        {% for t in file_tools %}
+        <button class="tool-card mb-1.5" data-load="{{ t.path }}">
+          <div><div class="name">{{ t.name }}</div><div class="meta">{{ (t.size / 1024)|round(1) }} KB</div></div>
+          <span class="load-btn">Load</span>
+        </button>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div id="saved-list" class="text-xs text-zinc-600 px-1 py-6 text-center">No saved tools yet</div>
+      {% endif %}
     </div>
-    <div class="form-group">
-      <label for="args_json">Arguments (JSON)</label>
-      <input type="text" name="args_json" id="args_json" value="{{ args_json }}" placeholder='{"x": 1, "y": 2}'>
+    <div class="collapsible-section">
+      <div class="section-title collapsible-header" data-target="db-list">
+        Database Tools
+        <svg class="chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 4l3 3 3-3" stroke="#52525b" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      {% if tools %}
+      <div id="db-list" class="tool-scroll" style="max-height:calc(50vh - 80px)">
+        {% for t in tools %}
+        <button class="tool-card mb-1.5" data-load-db="{{ t.id }}">
+          <div>
+            <div class="name flex items-center gap-2">{{ t.name }}<span class="rounded-full px-1.5 py-0.5 text-[10px] font-medium {% if t.status == 'final' %}bg-green-500/10 text-green-400{% elif t.status == 'needs_fix' %}bg-red-500/10 text-red-400{% else %}bg-violet-500/10 text-violet-300{% endif %}">{{ t.status }}</span></div>
+            <div class="meta">{{ t.description[:50] }}{% if t.description|length > 50 %}...{% endif %}</div>
+          </div>
+          <span class="load-btn">Load</span>
+        </button>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div id="db-list" class="text-xs text-zinc-600 px-1 py-6 text-center">No database tools</div>
+      {% endif %}
     </div>
-    <button type="button" id="btn-execute">Execute</button>
-    <button type="button" id="btn-test" style="background:var(--info);border-color:var(--info)" title="Run the automated test function">Run Test</button>
-    <span id="exec-spinner" style="display:none"><span class="spinner-sm"></span>running…</span>
+  </div>
+
+  <!-- Main -->
+  <div class="flex-1 flex flex-col p-3 gap-3 min-w-0">
+    <!-- Top row: editor -->
+    <div class="flex-1 min-h-0">
+      <div class="editor-shell">
+        <div class="editor-top">
+          <div class="flex items-center gap-3">
+            <div class="editor-dots"><span></span><span></span><span></span></div>
+            <span class="text-xs text-zinc-500 font-mono">tool.py</span>
+          </div>
+          <span class="text-[10px] text-zinc-600">Ready</span>
+        </div>
+        <textarea name="code" id="code" placeholder="# Write or load a tool..." class="flex-1 w-full bg-transparent border-0 px-5 py-4 text-zinc-200 text-xs font-mono focus:outline-none resize-none placeholder-zinc-700" style="min-height:0">{{ code }}</textarea>
+      </div>
+    </div>
+
+    <!-- Bottom row: command bar + result -->
+    <div class="grid grid-cols-1 xl:grid-cols-5 gap-3 shrink-0" style="height:280px">
+      <!-- Left: command bar -->
+      <div class="xl:col-span-2 bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4 flex flex-col justify-between collapsible-section">
+        <div class="flex items-center justify-between cursor-pointer select-none collapsible-header">
+          <span class="text-[10px] font-medium text-zinc-600 uppercase tracking-wider">Controls</span>
+          <svg class="chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 4l3 3 3-3" stroke="#52525b" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div id="cmd-body">
+        <div class="space-y-3 mt-3">
+          <div>
+            <label class="block text-[10px] font-medium text-zinc-600 uppercase tracking-wider mb-1.5">Function</label>
+            <input type="text" name="func_name" id="func_name" value="{{ func_name }}" placeholder="tool_fn" class="w-full bg-black/40 border border-white/5 rounded-xl px-3.5 py-2.5 text-zinc-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/30 transition-all placeholder-zinc-600">
+          </div>
+          <div>
+            <label class="block text-[10px] font-medium text-zinc-600 uppercase tracking-wider mb-1.5">Arguments</label>
+            <input type="text" name="args_json" id="args_json" value="{{ args_json }}" placeholder='{"x": 1, "y": 2}' class="w-full bg-black/40 border border-white/5 rounded-xl px-3.5 py-2.5 text-zinc-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/30 transition-all placeholder-zinc-600">
+          </div>
+        </div>
+        <div class="command-bar pt-3">
+          <button type="button" id="btn-execute" class="primary-btn">▶ Execute</button>
+          <button type="button" id="btn-test" class="ghost-btn">🧪 Test</button>
+          <button type="button" id="btn-fix" class="ghost-btn" onclick="fixNow(_lastResult)" disabled style="display:none">🛠 Fix</button>
+        </div>
+        </div>
+      </div>
+
+      <!-- Right: result -->
+      <div class="xl:col-span-3 bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4 flex flex-col min-h-0">
+        <div class="result-tabs" id="result-tabs">
+          <button class="result-tab active" data-tab="output">Output</button>
+          <button class="result-tab" data-tab="explain">Explain</button>
+          <button class="result-tab" data-tab="refine">Refine</button>
+        </div>
+        <div id="result-area" class="result-content flex-1 min-h-0 text-xs">
+          <div class="empty-state">
+            <div class="icon">⚡</div>
+            <h3>Ready to execute</h3>
+            <p>Load a tool or write code to begin.</p>
+          </div>
+        </div>
+        <div id="exec-spinner" style="display:none" class="absolute inset-0 flex items-center justify-center bg-zinc-950/80 rounded-2xl z-10">
+          <div class="pulse-loader">
+            <div class="pulse-dot"></div>
+            <span class="text-xs text-zinc-400 font-medium">Executing Tool…</span>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
-
-<div id="result-area"></div>
 
 <script>
 (function() {
@@ -119,7 +230,6 @@
   var btnTest = document.getElementById('btn-test');
   var spinner = document.getElementById('exec-spinner');
 
-  // Expose to global scope so onclick handlers in dynamic HTML can reach them
   window._codeEl = codeEl;
   window._funcEl = funcEl;
   window._argsEl = argsEl;
@@ -129,45 +239,82 @@
   window._spinner = spinner;
   window._lastResult = null;
 
+  /* tab switching */
+  var tabBtns = document.querySelectorAll('.result-tab');
+  tabBtns.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      tabBtns.forEach(function(b) { b.classList.remove('active'); });
+      this.classList.add('active');
+    });
+  });
+
+  /* collapsible sections */
+  document.querySelectorAll('.collapsible-header').forEach(function(header) {
+    header.addEventListener('click', function() {
+      this.closest('.collapsible-section').classList.toggle('collapsed');
+    });
+  });
+
   function esc(s) {
     var d = document.createElement('div');
     d.textContent = s;
     return d.innerHTML;
   }
 
+  function showTab(tab) {
+    tabBtns.forEach(function(b) {
+      b.classList.toggle('active', b.dataset.tab === tab);
+    });
+  }
+
   function resultCard(data) {
     window._lastResult = data;
-    var html = '<div class="card"><h3>Result</h3><div class="result-box">';
-    html += '<p><span class="key">success:</span> ';
-    html += data.success
-      ? '<span class="badge success">true</span>'
-      : '<span class="badge error">false</span>';
-    html += '</p>';
+    var cls = data.success ? 'success' : 'fail';
+    var icon = data.success ? '✓' : '✗';
+    var timing = data.timing ? data.timing + 'ms' : '';
+    var html = '<div class="result-card ' + cls + '">';
+    html += '<div class="result-head">';
+    html += '<span class="status-badge ' + (data.success ? 'ok' : 'err') + '">' + icon + ' ' + (data.success ? 'Executed' : 'Failed') + '</span>';
+    if (timing) html += '<span class="timing">' + timing + '</span>';
+    html += '</div>';
     if (data.success && data.output !== null && data.output !== undefined) {
-      html += '<p><span class="key">output:</span> <pre style="margin-top:4px">' + esc(data.output) + '</pre></p>';
+      html += '<pre class="bg-black/40 border border-white/5 rounded-xl p-3.5 text-xs text-zinc-300 overflow-x-auto leading-relaxed">' + esc(data.output) + '</pre>';
     }
     if (data.error) {
-      html += '<p><span class="key">error:</span> <span class="badge error">' + esc(data.error) + '</span></p>';
+      html += '<pre class="bg-black/40 border border-red-500/10 rounded-xl p-3.5 text-xs text-red-300 overflow-x-auto leading-relaxed">' + esc(data.error) + '</pre>';
     }
-    html += '</div><div style="display:flex;gap:8px;margin-top:12px">';
-    // Run Function — uses current form values via global refs
-    html += '<button class="secondary" onclick="execNow({action:\'run\',code:_codeEl.value,func_name:_funcEl.value,args_json:_argsEl.value})" title="Run the implementation function">Run Function</button>';
-    // Run Test — prepends test_ to func_name
-    html += '<button style="background:var(--info);border-color:var(--info)" onclick="execNow({action:\'run\',code:_codeEl.value,func_name:\'test_\'+_funcEl.value,args_json:\'{}\'})" title="Run automated test">Run Test</button>';
-    // Fix
-    if (!data.success && data.error) {
-      html += '<button style="background:var(--warning);border-color:var(--warning);color:#000" onclick="fixNow(_lastResult)">Fix with LLM</button>';
+    if (data.missing_dep) {
+      html += '<div class="mt-3 p-3 rounded-xl border border-violet-500/20 bg-violet-500/5">';
+      html += '<p class="text-xs mb-1.5"><strong class="text-zinc-200">Missing dep:</strong> <code class="text-violet-300 bg-black/40 px-1.5 py-0.5 rounded text-[10px]">' + esc(data.missing_dep) + '</code></p>';
+      var already = (data.approved_deps || []).indexOf(data.missing_dep) !== -1;
+      if (!already) {
+        html += '<button class="btn-approve-dep bg-violet-500/10 text-violet-300 border border-violet-500/20 rounded-lg px-3 py-1.5 text-[10px] font-medium hover:bg-violet-500/20 transition-colors" data-module="' + esc(data.missing_dep) + '">Approve &amp; Install</button>';
+      } else {
+        html += '<p class="text-[10px] text-zinc-500">Approved — will auto-install on next run</p>';
+      }
+      html += '</div>';
     }
-    // Explain
-    html += '<button class="secondary" onclick="explainNow(_lastResult)">Explain</button>';
-    html += '</div></div>';
+    html += '</div>';
     return html;
   }
 
+  function setLoading(msg) {
+    resultArea.innerHTML = '<div class="pulse-loader"><div class="pulse-dot"></div><span class="text-xs text-zinc-400 font-medium">' + esc(msg) + '</span></div>';
+  }
+
+  function setEmpty() {
+    resultArea.innerHTML = '<div class="empty-state"><div class="icon">⚡</div><h3>Ready to execute</h3><p>Load a tool or write code to begin.</p></div>';
+  }
+
+  function setError(msg) {
+    resultArea.innerHTML = '<div class="flex flex-col items-center justify-center py-10 text-center"><div class="text-2xl mb-2">❌</div><p class="text-xs text-red-400">' + esc(msg) + '</p></div>';
+  }
+
   window.execNow = async function(payload) {
-    _btnExec.disabled = true;
-    _btnTest.disabled = true;
-    _spinner.style.display = 'inline';
+    btnExec.disabled = true;
+    btnTest.disabled = true;
+    spinner.style.display = 'flex';
+    showTab('output');
     try {
       var resp = await fetch('/api/execute', {
         method: 'POST',
@@ -175,17 +322,46 @@
         body: JSON.stringify(payload),
       });
       var data = await resp.json();
-      _resultArea.innerHTML = resultCard(data);
+      data.timing = data.timing || 0;
+      resultArea.innerHTML = resultCard(data);
+      resultArea.querySelectorAll('.btn-approve-dep').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          var module = btn.dataset.module;
+          btn.disabled = true;
+          btn.textContent = 'Installing...';
+          try {
+            var r = await fetch('/api/deps/approve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ module: module }),
+            });
+            var result = await r.json();
+            if (result.success && result.installed) {
+              execNow(payload);
+            } else {
+              btn.textContent = 'Install failed';
+            }
+          } catch(err) {
+            btn.textContent = 'Error';
+          }
+        });
+      });
     } catch(err) {
-      _resultArea.innerHTML = '<div class="card"><h3 style="color:var(--red)">Error</h3><pre>' + esc(err.message) + '</pre></div>';
+      setError(err.message);
     } finally {
-      _btnExec.disabled = false;
-      _btnTest.disabled = false;
-      _spinner.style.display = 'none';
+      btnExec.disabled = false;
+      btnTest.disabled = false;
+      spinner.style.display = 'none';
     }
   };
 
   window.fixNow = async function(data) {
+    if (!data) return;
+    btnExec.disabled = true;
+    btnTest.disabled = true;
+    spinner.style.display = 'flex';
+    showTab('output');
+    setLoading('Fixing with LLM…');
     try {
       var resp = await fetch('/api/fix', {
         method: 'POST',
@@ -194,17 +370,58 @@
       });
       var result = await resp.json();
       if (result.fixed && result.code) {
-        _codeEl.value = result.code;
-        _resultArea.innerHTML = '<div class="card" style="border-left:3px solid var(--green)"><h3 style="color:var(--green)">&#10003; Fixed</h3><p>Tool fixed after ' + (result.attempts || '?') + ' attempt(s). Code updated above.</p></div>';
+        codeEl.value = result.code;
+        resultArea.innerHTML = '<div class="flex flex-col items-center justify-center py-10 text-center"><div class="text-xl mb-2">✅</div><p class="text-xs text-green-400 font-medium">Fixed after ' + (result.attempts || '?') + ' attempt(s)</p></div>';
       } else {
-        _resultArea.innerHTML = '<div class="card" style="border-left:3px solid var(--red)"><h3 style="color:var(--red)">Fix Failed</h3><pre>' + esc(result.error || 'Unknown error') + '</pre></div>';
+        setError(result.error || 'Fix failed');
       }
     } catch(err) {
-      _resultArea.innerHTML = '<div class="card"><h3 style="color:var(--red)">Error</h3><pre>' + esc(err.message) + '</pre></div>';
+      setError(err.message);
+    } finally {
+      btnExec.disabled = false;
+      btnTest.disabled = false;
+      spinner.style.display = 'none';
+    }
+  };
+
+  window.refineNow = async function() {
+    var input = document.getElementById('refine-input');
+    var instructions = input ? input.value.trim() : '';
+    if (!instructions) return;
+    btnExec.disabled = true;
+    btnTest.disabled = true;
+    spinner.style.display = 'flex';
+    showTab('refine');
+    setLoading('Refining…');
+    try {
+      var resp = await fetch('/api/refine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: codeEl.value, func_name: funcEl.value, instructions: instructions }),
+      });
+      var result = await resp.json();
+      if (result.success && result.code) {
+        codeEl.value = result.code;
+        resultArea.innerHTML = '<div class="flex flex-col items-center justify-center py-10 text-center"><div class="text-xl mb-2">✨</div><p class="text-xs text-green-400 font-medium">Refined successfully</p></div>';
+      } else {
+        setError(result.error || 'Refine failed');
+      }
+    } catch(err) {
+      setError(err.message);
+    } finally {
+      btnExec.disabled = false;
+      btnTest.disabled = false;
+      spinner.style.display = 'none';
     }
   };
 
   window.explainNow = async function(data) {
+    if (!data) return;
+    btnExec.disabled = true;
+    btnTest.disabled = true;
+    spinner.style.display = 'flex';
+    showTab('explain');
+    setLoading('Generating explanation…');
     try {
       var resp = await fetch('/api/explain', {
         method: 'POST',
@@ -212,78 +429,88 @@
         body: JSON.stringify({ code: data.code, func_name: data.func_name, last_result: data.success ? data.output : 'ERROR: ' + data.error }),
       });
       var result = await resp.json();
-      _resultArea.innerHTML = '<div class="card"><h3>Explanation</h3><div class="result-box"><pre style="white-space:pre-wrap">' + esc(result.explanation || 'No explanation') + '</pre></div></div>';
+      resultArea.innerHTML = '<div class="space-y-2"><div class="flex items-center gap-2 pt-1"><span class="text-sm">💬</span><span class="text-xs font-medium text-zinc-300">Explanation</span></div><div class="bg-black/40 border border-white/5 rounded-xl p-4"><pre class="text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed">' + esc(result.explanation || 'No explanation') + '</pre></div></div>';
     } catch(err) {
-      _resultArea.innerHTML = '<div class="card"><h3 style="color:var(--red)">Error</h3><pre>' + esc(err.message) + '</pre></div>';
+      setError(err.message);
+    } finally {
+      btnExec.disabled = false;
+      btnTest.disabled = false;
+      spinner.style.display = 'none';
     }
   };
 
-  // ── Run button ──
-  _btnExec.addEventListener('click', function() {
-    execNow({ action: 'run', code: _codeEl.value, func_name: _funcEl.value, args_json: _argsEl.value });
+  btnExec.addEventListener('click', function() {
+    execNow({ action: 'run', code: codeEl.value, func_name: funcEl.value, args_json: argsEl.value });
   });
 
-  // ── Run Test button ──
-  _btnTest.addEventListener('click', function() {
-    execNow({ action: 'run', code: _codeEl.value, func_name: 'test_' + _funcEl.value, args_json: '{}' });
+  btnTest.addEventListener('click', function() {
+    execNow({ action: 'run', code: codeEl.value, func_name: 'test_' + funcEl.value, args_json: '{}' });
   });
 
-  // ── Load file tool ──
+  /* load tool */
   document.querySelectorAll('[data-load]').forEach(function(btn) {
     btn.addEventListener('click', async function() {
       var resp = await fetch('/api/load', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool_file: btn.dataset.load }),
+        body: JSON.stringify({ tool_file: this.dataset.load }),
       });
       var data = await resp.json();
-      if (data.error) {
-        _resultArea.innerHTML = '<div class="card"><p class="error">' + esc(data.error) + '</p></div>';
-        return;
-      }
-      _codeEl.value = data.code;
-      _funcEl.value = data.func_name;
-      if (data.args_json) _argsEl.value = data.args_json;
+      if (data.error) { setError(data.error); return; }
+      codeEl.value = data.code;
+      funcEl.value = data.func_name;
+      if (data.args_json) argsEl.value = data.args_json;
       execNow({ action: 'run', code: data.code, func_name: data.func_name, args_json: data.args_json || '{}' });
     });
   });
 
-  // ── Load DB tool ──
   document.querySelectorAll('[data-load-db]').forEach(function(btn) {
     btn.addEventListener('click', async function() {
       var resp = await fetch('/api/load', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool_id: btn.dataset.loadDb }),
+        body: JSON.stringify({ tool_id: this.dataset.loadDb }),
       });
       var data = await resp.json();
-      if (data.error) {
-        _resultArea.innerHTML = '<div class="card"><p class="error">' + esc(data.error) + '</p></div>';
-        return;
-      }
-      _codeEl.value = data.code;
-      _funcEl.value = data.func_name;
-      if (data.args_json) _argsEl.value = data.args_json;
+      if (data.error) { setError(data.error); return; }
+      codeEl.value = data.code;
+      funcEl.value = data.func_name;
+      if (data.args_json) argsEl.value = data.args_json;
       execNow({ action: 'run', code: data.code, func_name: data.func_name, args_json: data.args_json || '{}' });
     });
   });
 
-  // ── Delete file tool ──
-  document.querySelectorAll('[data-delete]').forEach(function(btn) {
-    btn.addEventListener('click', async function() {
-      if (!confirm('Delete this tool?')) return;
-      var resp = await fetch('/api/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool_file: btn.dataset.delete }),
-      });
-      var data = await resp.json();
-      if (data.success) {
-        var row = btn.closest('tr');
-        if (row) row.remove();
+  /* refine tab: show textarea + button */
+  var refineTab = document.querySelector('[data-tab="refine"]');
+  if (refineTab) {
+    refineTab.addEventListener('click', function() {
+      resultArea.innerHTML = '<div class="py-4"><textarea id="refine-input" rows="3" class="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-zinc-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/30 transition-all placeholder-zinc-600" placeholder="Describe what to change…"></textarea><button class="mt-2 bg-violet-500/10 text-violet-300 border border-violet-500/20 rounded-xl px-4 py-2 text-xs font-semibold hover:bg-violet-500/20 transition-all" onclick="refineNow()">Refine with LLM</button></div>';
+    });
+  }
+
+  /* explain tab: re-run last explain */
+  var explainTab = document.querySelector('[data-tab="explain"]');
+  if (explainTab) {
+    explainTab.addEventListener('click', function() {
+      if (window._lastResult) {
+        explainNow(window._lastResult);
+      } else {
+        setEmpty();
       }
     });
-  });
+  }
+
+  /* output tab: restore last result */
+  var outputTab = document.querySelector('[data-tab="output"]');
+  if (outputTab) {
+    outputTab.addEventListener('click', function() {
+      if (window._lastResult) {
+        resultArea.innerHTML = resultCard(window._lastResult);
+      } else {
+        setEmpty();
+      }
+    });
+  }
 })();
 </script>
 {% endblock %}

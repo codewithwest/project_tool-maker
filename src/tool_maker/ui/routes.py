@@ -277,6 +277,9 @@ def api_pipeline_run():
         pipeline = DBPipeline(
             llm_provider=tm.llm_provider,
             output_dir=tm.config.output_dir or "./generated_tools",
+            extra_whitelist=tm.file_config.extra_whitelist,
+            approved_deps=tm.file_config.approved_deps,
+            auto_approve_deps=tm.file_config.auto_approve_deps,
         )
         result = pipeline.run(goal, project_path=path)
         return jsonify(result)
@@ -297,15 +300,65 @@ def api_execute():
         args = json.loads(args_raw) if args_raw else {}
     except json.JSONDecodeError:
         args = {}
-    executor = ToolExecutor()
+    tm = _get_tm()
+    executor = tm.tool_executor
     result = executor.execute_tool(code, func_name, **args)
-    return jsonify({
+    resp = {
         "success": result.success,
         "output": _serialize(result.output) if result.success else None,
         "error": result.error,
         "code": code,
         "func_name": func_name,
         "args_json": args_raw or "{}",
+        "missing_dep": None,
+        "approved_deps": tm.file_config.approved_deps,
+    }
+    if not result.success and result.error and result.error.startswith("missing-dep:"):
+        mod = result.error.split(":", 1)[1].strip()
+        resp["missing_dep"] = mod
+    return jsonify(resp)
+
+
+@bp.route("/api/deps/check", methods=["POST"])
+def api_deps_check():
+    """Scan code for third-party imports and return missing ones."""
+    data = request.get_json() or {}
+    code = data.get("code", "")
+    if not code:
+        return jsonify({"missing": [], "approved": []})
+    from tool_maker.tool.deps import scan_imports, is_third_party, is_installed
+    all_imports = scan_imports(code)
+    third_party = [m for m in all_imports if is_third_party(m)]
+    missing = [m for m in third_party if not is_installed(m)]
+    tm = _get_tm()
+    return jsonify({
+        "missing": missing,
+        "approved": tm.file_config.approved_deps,
+        "auto_approve": tm.file_config.auto_approve_deps,
+    })
+
+
+@bp.route("/api/deps/approve", methods=["POST"])
+def api_deps_approve():
+    """Approve a module for auto-install."""
+    data = request.get_json() or {}
+    module = data.get("module", "").strip()
+    if not module:
+        return jsonify({"success": False, "error": "No module specified"}), 400
+    from tool_maker.tool.deps import install
+    tm = _get_tm()
+    ok = tm.file_config.approve_dep(module)
+    if ok:
+        installed = install(module)
+        return jsonify({
+            "success": True,
+            "installed": installed,
+            "approved_deps": tm.file_config.approved_deps,
+        })
+    return jsonify({
+        "success": False,
+        "error": f"'{module}' already approved",
+        "approved_deps": tm.file_config.approved_deps,
     })
 
 
@@ -361,6 +414,21 @@ def api_delete():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@bp.route("/api/delete-db", methods=["POST"])
+def api_delete_db():
+    """Delete a database tool by id."""
+    data = request.get_json() or {}
+    tool_id = data.get("tool_id")
+    if not tool_id:
+        return jsonify({"success": False, "error": "No tool_id specified"}), 400
+    try:
+        from tool_maker.db.models import delete_tool
+        ok = delete_tool(int(tool_id))
+        return jsonify({"success": ok})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @bp.route("/api/fix", methods=["POST"])
 def api_fix():
     """Fix a tool via LLM and return the fixed code."""
@@ -380,6 +448,44 @@ def api_fix():
         return jsonify(fix_result)
     except Exception as e:
         return jsonify({"fixed": False, "error": str(e)}), 500
+
+
+@bp.route("/api/refine", methods=["POST"])
+def api_refine():
+    """Refine a tool with user-provided instructions via LLM."""
+    data = request.get_json() or {}
+    code = data.get("code", "")
+    func_name = data.get("func_name", "tool_fn")
+    instructions = data.get("instructions", "").strip()
+    if not code:
+        return jsonify({"success": False, "error": "No code provided"}), 400
+    if not instructions:
+        return jsonify({"success": False, "error": "No instructions provided"}), 400
+    tm = _get_tm()
+    if not tm.llm_provider:
+        return jsonify({"success": False, "error": "No LLM provider configured"}), 500
+    prompt = (
+        "You are a Python code refiner. The user has the following tool function "
+        "and wants you to refine it based on their instructions.\n\n"
+        f"Function name: {func_name}\n\n"
+        f"Current code:\n```python\n{code}\n```\n\n"
+        f"User instructions:\n{instructions}\n\n"
+        "Return ONLY the updated Python code inside ```python ... ``` markers. "
+        "Keep the same function name and signature unless the instructions "
+        "explicitly require changing them. Add strict type annotations."
+    )
+    try:
+        response = tm.llm_provider.generate(prompt)
+        import re
+        m = re.search(r"```python\s*\n(.*?)\n```", response, re.DOTALL)
+        if m:
+            refined = m.group(1).strip()
+        else:
+            m = re.search(r"```\s*\n(.*?)\n```", response, re.DOTALL)
+            refined = m.group(1).strip() if m else response.strip()
+        return jsonify({"success": True, "code": refined})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @bp.route("/api/explain", methods=["POST"])

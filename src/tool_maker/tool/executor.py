@@ -24,11 +24,15 @@ class ToolExecutor:
     def __init__(
         self, sandbox_timeout: int = 10,
         extra_whitelist: Optional[List[str]] = None,
+        approved_deps: Optional[List[str]] = None,
+        auto_approve_deps: bool = False,
     ):
         self.executed_tools: List[Dict[str, Any]] = []
         self.tool_cache: Dict[str, Callable] = {}
         self.sandbox_timeout = sandbox_timeout
         self.extra_whitelist = extra_whitelist or []
+        self.approved_deps = approved_deps or []
+        self.auto_approve_deps = auto_approve_deps
 
     def execute_tool(self, tool_code: str, tool_name: str, **kwargs) -> ToolResult:
         """Execute a tool from its code."""
@@ -38,6 +42,8 @@ class ToolExecutor:
                 tool_name,
                 timeout=self.sandbox_timeout,
                 extra_whitelist=self.extra_whitelist,
+                approved_deps=self.approved_deps,
+                auto_approve_deps=self.auto_approve_deps,
                 **kwargs,
             )
 

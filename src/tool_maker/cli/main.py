@@ -35,7 +35,7 @@ def main():
 
     # UI command
     ui_parser = subparsers.add_parser('ui', help='Launch the web UI')
-    ui_parser.add_argument('--host', default='127.0.0.1', help='Host to bind to')
+    ui_parser.add_argument('--host', default='0.0.0.0', help='Host to bind to')
     ui_parser.add_argument('--port', '-p', type=int, default=5000,
                            help='Port to bind to')
     ui_parser.add_argument('--debug', '-d', action='store_true',
@@ -56,6 +56,29 @@ def main():
                                              help='Add modules to sandbox whitelist')
     config_whitelist.add_argument('modules', nargs='+',
                                   help='Module names to allow')
+    config_approve = config_sub.add_parser('approve-dep',
+                                           help='Approve a pip package for auto-install')
+    config_approve.add_argument('module', help='Module name to approve')
+    config_auto = config_sub.add_parser('auto-approve',
+                                        help='Enable/disable silent auto-approve of deps')
+    config_auto.add_argument('value', choices=['on', 'off'],
+                             help='Enable or disable auto-approve')
+
+    # Dep command
+    dep_parser = subparsers.add_parser('dep', help='Manage sandbox dependencies')
+    dep_sub = dep_parser.add_subparsers(dest='dep_cmd')
+    dep_install = dep_sub.add_parser('install',
+                                     help='Install deps for a tool')
+    dep_install.add_argument('tool_name', nargs='?', default=None,
+                             help='Tool name (omit for all tools)')
+    dep_sync = dep_sub.add_parser('sync',
+                                  help='Install deps for all tools in DB')
+    dep_approve = dep_sub.add_parser('approve',
+                                     help='Approve a module for auto-install')
+    dep_approve.add_argument('module', help='Module name to approve')
+    dep_scan = dep_sub.add_parser('scan',
+                                  help='Scan a Python file for third-party imports')
+    dep_scan.add_argument('file', help='Path to Python file')
 
     # Fix command
     fix_parser = subparsers.add_parser('fix', help='Fix a broken tool file using LLM')
@@ -97,6 +120,8 @@ def main():
         handle_migrate(args)
     elif args.command == 'pipeline':
         handle_pipeline(args)
+    elif args.command == 'dep':
+        handle_dep(args)
     elif args.command == 'version':
         handle_version()
     else:
@@ -184,6 +209,8 @@ def handle_config(args):
         print(f"Config file: {_get_config_path()}")
         print(f"  output_dir: {cfg.output_dir}")
         print(f"  extra_whitelist: {cfg.extra_whitelist}")
+        print(f"  approved_deps: {cfg.approved_deps}")
+        print(f"  auto_approve_deps: {cfg.auto_approve_deps}")
     elif args.config_cmd == 'set':
         if args.key == 'output_dir':
             cfg.output_dir = args.value
@@ -192,10 +219,20 @@ def handle_config(args):
     elif args.config_cmd == 'whitelist':
         added = cfg.add_whitelist(*args.modules)
         if added:
+            cfg.save()
             print(f"Added to whitelist: {args.modules}")
         else:
             print("All modules already in whitelist")
         print(f"  extra_whitelist: {cfg.extra_whitelist}")
+    elif args.config_cmd == 'approve-dep':
+        if cfg.approve_dep(args.module):
+            print(f"Approved dep: {args.module}")
+        else:
+            print(f"'{args.module}' already approved")
+    elif args.config_cmd == 'auto-approve':
+        cfg.auto_approve_deps = args.value == 'on'
+        cfg.save()
+        print(f"auto_approve_deps set to: {cfg.auto_approve_deps}")
 
 
 def handle_fix(args):
@@ -258,7 +295,13 @@ def handle_pipeline(args):
         print("No LLM provider configured")
         sys.exit(1)
     output_dir = args.output or tm.config.output_dir or "./generated_tools"
-    pipeline = DBPipeline(llm_provider=tm.llm_provider, output_dir=output_dir)
+    pipeline = DBPipeline(
+        llm_provider=tm.llm_provider,
+        output_dir=output_dir,
+        extra_whitelist=tm.file_config.extra_whitelist,
+        approved_deps=tm.file_config.approved_deps,
+        auto_approve_deps=tm.file_config.auto_approve_deps,
+    )
     result = pipeline.run(args.goal, project_path=args.project)
 
     if result.get("success"):
@@ -270,6 +313,107 @@ def handle_pipeline(args):
     else:
         print(f"Pipeline failed: {result.get('error', 'unknown error')}")
         sys.exit(1)
+
+
+def handle_dep(args):
+    """Handle dependency commands."""
+    from tool_maker.tool.deps import missing_deps, install, scan_imports, is_third_party
+
+    if args.dep_cmd == 'approve':
+        from tool_maker.config import ToolMakerConfigFile
+        cfg = ToolMakerConfigFile.load()
+        if cfg.approve_dep(args.module):
+            print(f"Approved '{args.module}' for auto-install")
+        else:
+            print(f"'{args.module}' already approved")
+        return
+
+    if args.dep_cmd == 'scan':
+        from pathlib import Path
+        path = Path(args.file)
+        if not path.exists():
+            print(f"File not found: {args.file}")
+            sys.exit(1)
+        code = path.read_text()
+        imports = scan_imports(code)
+        third_party = [m for m in imports if is_third_party(m)]
+        if third_party:
+            print("Third-party imports detected:")
+            for m in third_party:
+                print(f"  - {m}")
+        else:
+            print("No third-party imports detected")
+        return
+
+    if args.dep_cmd == 'install':
+        from tool_maker.config import ToolMakerConfigFile
+        cfg = ToolMakerConfigFile.load()
+        if args.tool_name:
+            _install_tool_deps(args.tool_name, cfg)
+        else:
+            _install_all_deps(cfg)
+        return
+
+    # dep sync
+    from tool_maker.config import ToolMakerConfigFile
+    cfg = ToolMakerConfigFile.load()
+    _install_all_deps(cfg)
+
+
+def _install_tool_deps(tool_name: str, cfg) -> None:
+    """Install dependencies for a single tool."""
+    from tool_maker.tool.deps import install_deps_for_code
+    try:
+        from tool_maker.db.models import get_tool_by_name
+    except ImportError:
+        print("DB deps not installed")
+        sys.exit(1)
+    tool = get_tool_by_name(tool_name)
+    if not tool:
+        print(f"Tool '{tool_name}' not found")
+        sys.exit(1)
+    code = tool.get("code", "")
+    if not code:
+        print(f"Tool '{tool_name}' has no code")
+        return
+    installed = install_deps_for_code(
+        code,
+        approved=cfg.approved_deps,
+        auto_approve=cfg.auto_approve_deps,
+    )
+    if installed:
+        print(f"Installed: {', '.join(installed)}")
+    else:
+        print("All dependencies already satisfied")
+
+
+def _install_all_deps(cfg) -> None:
+    """Install dependencies for all tools in the DB."""
+    from tool_maker.tool.deps import install_deps_for_code
+    try:
+        from tool_maker.db.models import list_tools
+    except ImportError:
+        print("DB deps not installed")
+        sys.exit(1)
+    tools = list_tools()
+    if not tools:
+        print("No tools in DB")
+        return
+    all_installed = []
+    for tool in tools:
+        code = tool.get("code", "")
+        if code:
+            installed = install_deps_for_code(
+                code,
+                approved=cfg.approved_deps,
+                auto_approve=cfg.auto_approve_deps,
+            )
+            all_installed.extend(installed)
+    if all_installed:
+        unique = list(set(all_installed))
+        print(f"Installed: {', '.join(unique)}")
+    else:
+        print("All dependencies already satisfied")
 
 
 def _auto_migrate() -> None:

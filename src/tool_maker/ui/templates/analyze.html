@@ -1,64 +1,122 @@
 {% extends "base.html" %}
 {% set active = "analyze" %}
+{% block head %}
+<style>
+html { scroll-behavior: smooth; }
+.hero-glow {
+  position: absolute; inset: 0;
+  opacity: 0.20;
+  background: radial-gradient(circle at top right, #a855f7, transparent 40%);
+  pointer-events: none;
+}
+#analyze-result { animation: fadeUp .4s ease; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+</style>
+{% endblock %}
 {% block content %}
-<h2>Project Analyzer</h2>
-
-<div class="card">
-  <form method="POST">
-    <label for="path">Project path</label>
-    <input type="text" name="path" id="path" value="{{ path }}" placeholder="e.g. /path/to/python/project">
-    <button type="submit">Analyze</button>
-  </form>
+<div class="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-8 mb-8">
+  <div class="hero-glow"></div>
+  <div class="relative">
+    <div class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs bg-violet-500/10 text-violet-300 mb-4">
+      🔍 Project Analyzer
+    </div>
+    <h1 class="text-3xl font-bold text-white mb-2">Analyze Codebase</h1>
+    <p class="text-zinc-400 mb-8 max-w-xl">
+      Scan a Python project to discover its modules, functions, classes, and dependencies.
+    </p>
+    <form method="POST">
+      <div class="flex flex-col lg:flex-row gap-4">
+        <div class="flex-1">
+          <input type="text" name="path" id="path" value="{{ path }}" placeholder="e.g. /path/to/python/project" required
+                 class="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3.5 text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all">
+        </div>
+        <button type="submit" class="bg-violet-600 hover:bg-violet-500 text-white rounded-xl px-7 py-3.5 text-sm font-semibold transition-all whitespace-nowrap">
+          Analyze
+        </button>
+      </div>
+    </form>
+  </div>
 </div>
 
 {% if result %}
-<div class="card">
-  <h3>Analysis Results</h3>
+<div id="analyze-result">
   {% if result.error %}
-    <p class="badge error">{{ result.error }}</p>
+  <div class="bg-white/[0.03] border border-red-500/30 rounded-2xl p-8 text-center">
+    <div class="text-3xl mb-3">❌</div>
+    <p class="text-sm text-red-400">{{ result.error }}</p>
+  </div>
   {% else %}
-    <h4>Modules</h4>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-5 text-center">
+      <div class="text-2xl mb-2">📦</div>
+      <div class="text-2xl font-bold text-white">{{ result.modules|length if result.modules else 0 }}</div>
+      <div class="text-xs text-zinc-500 mt-1">Modules</div>
+    </div>
+    <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-5 text-center">
+      <div class="text-2xl mb-2">🔗</div>
+      <div class="text-2xl font-bold text-white">{{ result.dependencies|length if result.dependencies else 0 }}</div>
+      <div class="text-xs text-zinc-500 mt-1">Dependencies</div>
+    </div>
+    <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-5 text-center">
+      <div class="text-2xl mb-2">🚪</div>
+      <div class="text-2xl font-bold text-white">{{ result.entry_points|length if result.entry_points else 0 }}</div>
+      <div class="text-xs text-zinc-500 mt-1">Entry Points</div>
+    </div>
+  </div>
+
+  <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-6 mb-4">
+    <h3 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">Modules</h3>
     {% if result.modules %}
-    <table>
-      <thead><tr><th>Module</th><th>File</th><th>Type</th></tr></thead>
-      <tbody>
-      {% for m in result.modules %}
-        <tr>
-          <td><strong>{{ m.name }}</strong></td>
-          <td><code>{{ m.file }}</code></td>
-          <td><span class="badge info">{{ m.type }}</span></td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-white/5">
+            <th class="text-left py-2.5 pr-4 text-zinc-500 font-medium">Module</th>
+            <th class="text-left py-2.5 pr-4 text-zinc-500 font-medium">File</th>
+            <th class="text-left py-2.5 text-zinc-500 font-medium">Type</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/5">
+        {% for m in result.modules %}
+          <tr class="hover:bg-white/[0.02]">
+            <td class="py-2.5 pr-4 font-medium text-white">{{ m.name }}</td>
+            <td class="py-2.5 pr-4"><code class="text-xs text-zinc-400">{{ m.file }}</code></td>
+            <td class="py-2.5"><span class="inline-flex items-center rounded-full bg-violet-500/10 text-violet-300 px-2.5 py-0.5 text-xs font-medium">{{ m.type }}</span></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% else %}
-      <p>No modules found.</p>
+    <p class="text-sm text-zinc-500">No modules found.</p>
     {% endif %}
+  </div>
 
-    <h4>Dependencies</h4>
+  <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-6 mb-4">
+    <h3 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">Dependencies</h3>
     {% if result.dependencies %}
-    <table>
-      <thead><tr><th>Dependency</th></tr></thead>
-      <tbody>
+    <div class="flex flex-wrap gap-2">
       {% for dep in result.dependencies %}
-        <tr><td><code>{{ dep }}</code></td></tr>
+      <code class="text-xs bg-white/5 text-zinc-300 px-3 py-1.5 rounded-lg border border-white/5">{{ dep }}</code>
       {% endfor %}
-      </tbody>
-    </table>
+    </div>
     {% else %}
-      <p>No dependencies found.</p>
+    <p class="text-sm text-zinc-500">No dependencies found.</p>
     {% endif %}
+  </div>
 
-    <h4>Entry Points</h4>
+  <div class="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
+    <h3 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">Entry Points</h3>
     {% if result.entry_points %}
-    <ul>
-    {% for ep in result.entry_points %}
-      <li><code>{{ ep }}</code></li>
-    {% endfor %}
-    </ul>
+    <div class="space-y-1.5">
+      {% for ep in result.entry_points %}
+      <code class="block text-sm text-zinc-300 bg-white/5 px-3 py-2 rounded-lg border border-white/5">{{ ep }}</code>
+      {% endfor %}
+    </div>
     {% else %}
-      <p>No entry points found.</p>
+    <p class="text-sm text-zinc-500">No entry points found.</p>
     {% endif %}
+  </div>
   {% endif %}
 </div>
 {% endif %}

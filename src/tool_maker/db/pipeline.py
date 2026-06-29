@@ -9,7 +9,7 @@ implementation so failures propagate as proper assertion errors.
 
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from tool_maker.analyzer.project_scanner import ProjectScanner
 from tool_maker.planner import PlanExecutor, Planner, PlanValidator, ResultReviewer
@@ -34,11 +34,18 @@ class DBPipeline:
         llm_provider=None,
         project_scanner: Optional[ProjectScanner] = None,
         output_dir: str = "./generated_tools",
+        extra_whitelist: Optional[List[str]] = None,
+        approved_deps: Optional[List[str]] = None,
+        auto_approve_deps: bool = False,
     ):
         self.llm_provider = llm_provider
         self.scanner = project_scanner or ProjectScanner(".")
         self.tool_generator = ToolGenerator(self.scanner)
-        self.tool_executor = ToolExecutor()
+        self.tool_executor = ToolExecutor(
+            extra_whitelist=extra_whitelist or [],
+            approved_deps=approved_deps or [],
+            auto_approve_deps=auto_approve_deps,
+        )
         self.planner = Planner(llm_provider=llm_provider)
         self.plan_validator = PlanValidator(llm_provider=llm_provider)
         self.plan_executor = PlanExecutor(
@@ -173,10 +180,18 @@ class DBPipeline:
             return {**stages, "success": False,
                     "error": "Implementation stage produced no code"}
 
+        from tool_maker.tool.deps import scan_imports, is_third_party, is_installed
+        tool_deps = [
+            m for m in scan_imports(tool_code)
+            if is_third_party(m) and is_installed(m)
+        ]
+        log.info("Tool dependencies detected: %s", tool_deps)
+
         tool_id = db.save_tool(
             name=tool_name,
             code=tool_code,
             description=goal,
+            deps=tool_deps,
             plan_id=plan_id,
         )
         log.info("Tool saved to DB: id=%d name='%s'", tool_id, tool_name)

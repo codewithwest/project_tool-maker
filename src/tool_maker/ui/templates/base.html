@@ -1,25 +1,92 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tool Maker UI</title>
-<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        accent: '#a855f7',
+        surface: '#09090b',
+      }
+    }
+  }
+}
+</script>
+<style>
+.log-viewer { height: 400px; overflow-y: auto; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; }
+.log-time { color: #6b7280; margin-right: 8px; }
+.log-level { font-weight: 600; margin-right: 8px; padding: 1px 4px; border-radius: 3px; font-size: 10px; }
+.log-level.INFO { color: #a78bfa; }
+.log-level.WARNING { color: #fbbf24; }
+.log-level.ERROR { color: #f87171; }
+.log-level.DEBUG { color: #6b7280; }
+.log-msg { color: #e5e7eb; }
+.log-entry { padding: 2px 0; }
+.log-entry.prompt { border-left: 2px solid #a855f7; padding-left: 6px; margin: 4px 0; }
+.log-entry.response { border-left: 2px solid #22d3ee; padding-left: 6px; margin: 4px 0; }
+.log-entry.stage { border-left: 2px solid #fbbf24; padding-left: 6px; margin: 6px 0; font-weight: 600; }
+.log-entry.test { border-left: 2px solid #4ade80; padding-left: 6px; margin: 4px 0; }
+.log-entry.error-log { border-left: 2px solid #f87171; padding-left: 6px; margin: 4px 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-sm {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid rgba(168,85,247,.2);
+  border-top-color: #a855f7;
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+  vertical-align: middle;
+}
+</style>
 {% block head %}{% endblock %}
 </head>
-<body>
+<body class="bg-zinc-950 text-zinc-200 min-h-screen flex">
 
-<nav class="sidebar">
-  <h1>Tool Maker</h1>
-  <a href="/" class="{% if active=='index' %}active{% endif %}">Dashboard</a>
-  <a href="/pipeline" class="{% if active=='pipeline' %}active{% endif %}">Pipeline</a>
-  <a href="/analyze" class="{% if active=='analyze' %}active{% endif %}">Analyze</a>
-  <a href="/execute" class="{% if active=='execute' %}active{% endif %}">Execute</a>
-  <a href="/provider" class="{% if active=='provider' %}active{% endif %}">Provider</a>
-  <a href="/config" class="{% if active=='config' %}active{% endif %}">Config</a>
+<nav class="w-64 h-screen fixed left-0 top-0 bg-zinc-900/80 backdrop-blur-xl border-r border-white/5 p-6 flex flex-col z-50">
+  <div class="flex items-center gap-3 mb-10">
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="8" fill="url(#logo-grad)"/>
+      <path d="M9 22V13l5-5 4 4 5-5v9l-5 5-4-4-5 5z" fill="rgba(255,255,255,.15)" stroke="#c4b5fd" stroke-width="1.2" stroke-linejoin="round"/>
+      <path d="M14 10l-2 2" stroke="#c4b5fd" stroke-width="1.2" stroke-linecap="round"/>
+      <circle cx="20" cy="12" r="1.5" fill="#a855f7" opacity=".6"/>
+      <defs>
+        <linearGradient id="logo-grad" x1="0" y1="0" x2="32" y2="32">
+          <stop offset="0%" stop-color="#7c3aed"/>
+          <stop offset="100%" stop-color="#a855f7"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <span class="text-base font-bold text-white tracking-tight">Tool Maker</span>
+  </div>
+  <div class="flex flex-col gap-1">
+    <a href="/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all {% if active=='index' %}bg-violet-500/10 text-violet-300 font-medium border border-violet-500/20{% else %}text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]{% endif %}">
+      <span class="text-base">📊</span> Dashboard
+    </a>
+    <a href="/pipeline" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all {% if active=='pipeline' %}bg-violet-500/10 text-violet-300 font-medium border border-violet-500/20{% else %}text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]{% endif %}">
+      <span class="text-base">🧠</span> Pipeline
+    </a>
+    <a href="/analyze" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all {% if active=='analyze' %}bg-violet-500/10 text-violet-300 font-medium border border-violet-500/20{% else %}text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]{% endif %}">
+      <span class="text-base">🔍</span> Analyze
+    </a>
+    <a href="/execute" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all {% if active=='execute' %}bg-violet-500/10 text-violet-300 font-medium border border-violet-500/20{% else %}text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]{% endif %}">
+      <span class="text-base">⚡</span> Execute
+    </a>
+    <a href="/provider" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all {% if active=='provider' %}bg-violet-500/10 text-violet-300 font-medium border border-violet-500/20{% else %}text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]{% endif %}">
+      <span class="text-base">🤖</span> Provider
+    </a>
+    <a href="/config" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all {% if active=='config' %}bg-violet-500/10 text-violet-300 font-medium border border-violet-500/20{% else %}text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]{% endif %}">
+      <span class="text-base">⚙️</span> Config
+    </a>
+  </div>
 </nav>
 
-<main>
+<main class="ml-64 flex-1 p-8 max-w-6xl">
 {% block content %}{% endblock %}
 </main>
 
