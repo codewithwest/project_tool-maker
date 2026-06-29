@@ -1,6 +1,6 @@
 [project]
 name = "llm-tool-maker"
-version = "0.1.0"
+version = "0.2.0"
 description = "An intelligent tool-making package that leverages LLMs to analyze projects and generate tools"
 readme = "README.md"
 requires-python = ">=3.10"
