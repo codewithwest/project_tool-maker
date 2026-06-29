@@ -5,88 +5,136 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/llm-tool-maker.svg)](https://pypi.org/project/llm-tool-maker/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An intelligent tool-making system that uses local LLMs (via Ollama) to analyze projects, generate tools, and execute them in a sandboxed environment — all through a modern web dashboard or CLI.
+An intelligent tool-making system that uses LLMs to analyze projects, generate tools, and execute them in a sandboxed environment — all through a modern web dashboard or CLI.
+
+## Quick Start
+
+```bash
+# 1. Install
+pip install llm-tool-maker
+
+# 2. Initialize (detects Ollama, creates DB, writes .env)
+llm-tool-maker init
+
+# 3. Launch the dashboard
+llm-tool-maker ui
+```
+
+That's it. No PostgreSQL, no external services — just your local Ollama instance. The dashboard opens at `http://localhost:5000`.
 
 ## Features
 
-- **Project Analysis** — AST-based scanning of project structure, imports, and entry points
-- **LLM Tool Generation** — generates Python tools from natural language descriptions using local LLMs
-- **Sandboxed Execution** — subprocess runner with module whitelist, no network, and configurable timeout
-- **Autonomous Pipeline** — 6-stage DB-backed pipeline: Analyse → Plan → Validate → Implement → Test → Review, with auto-fix loop
-- **Web Dashboard** — 6-page glass-morphism UI (Dashboard, Pipeline, Execute, Analyze, Provider, Config, Docs)
-- **Dependency Management** — auto-detects imports, maps to pip packages, auto-installs via `uv`
-- **PostgreSQL Persistence** — saves tools, plans, executions, and reviews; migration system included
+| Feature | Description |
+|---|---|
+| **Zero-setup persistence** | SQLite by default (stdlib, no dependencies). Opt-in PostgreSQL for production. |
+| **Pluggable LLMs** | Ollama (local), OpenAI, or Anthropic — swap via `--provider` |
+| **Sandboxed execution** | Subprocess runner with module whitelist, no network, configurable timeout, auto-retry with dep install |
+| **Autonomous pipeline** | 6-stage DB-backed pipeline: Analyse → Plan → Validate → Implement → Test → Review, with auto-fix loop |
+| **Web dashboard** | 6-page glass-morphism UI (Dashboard, Pipeline, Execute, Analyze, Provider, Config, Docs) |
+| **Dependency management** | AST-based import scanning, 200+ stdlib modules, 50+ module→package mappings, auto-install |
+| **Remote API client** | `ToolMakerClient` lets you consume Tool Maker as a REST service |
+| **Docker Compose** | One-command deployment with Ollama + PostgreSQL + the app |
 
 ## Installation
 
 ```bash
-# Install globally
-uv tool install llm-tool-maker
+# From PyPI
+pip install llm-tool-maker
 
-# Or add to a project
-uv add llm-tool-maker
-```
+# With PostgreSQL support (optional)
+pip install 'llm-tool-maker[postgres]'
 
-### From source
+# All extras
+pip install 'llm-tool-maker[all]'
 
-```bash
+# From source
 git clone https://github.com/codewithwest/project_tool-maker.git
 cd project_tool-maker
 uv sync
 ```
 
-## Quick Start
+## Usage
 
-### 1. Start Ollama
-
-```bash
-ollama pull llama3.2  # or any model you prefer
-```
-
-### 2. Launch the dashboard
+### CLI
 
 ```bash
-tool-maker ui
+llm-tool-maker init            # One-time setup (checks Ollama, creates DB, writes .env)
+llm-tool-maker ui              # Launch web dashboard
+llm-tool-maker analyze <path>  # Scan a project
+llm-tool-maker pipeline <goal> # Run full autonomous pipeline
+llm-tool-maker run <file>      # Execute a tool file
+llm-tool-maker config show     # View configuration
+llm-tool-maker migrate up      # Run DB migrations
+llm-tool-maker --help          # All commands
 ```
 
-Opens at `http://localhost:5000`.
+### Python API
 
-### 3. Or use the CLI
+```python
+from tool_maker import ToolMaker
+
+# Use local Ollama (default)
+tm = ToolMaker(llm_provider="ollama", model="llama3.2")
+
+# Or OpenAI
+tm = ToolMaker(llm_provider="openai", api_key="sk-...", model="gpt-4o-mini")
+
+# Or Anthropic
+tm = ToolMaker(llm_provider="anthropic", api_key="sk-...", model="claude-sonnet-4-20250514")
+
+# Analyze, generate, execute
+info = tm.analyze_project("/path/to/project")
+result = tm.create_and_execute_tool("Parse CSV files and return row count")
+```
+
+### Remote API Client
+
+Use Tool Maker as a remote service from any Python project:
+
+```python
+from tool_maker import ToolMakerClient
+
+client = ToolMakerClient("http://localhost:5000")
+tools = client.list_tools()
+result = client.execute("print('hello world')")
+client.run_pipeline("Build a CLI tool that counts lines of code")
+```
+
+### API-only Mode
+
+Serve just the REST API (no Jinja templates):
 
 ```bash
-# Analyze a project
-tool-maker analyze /path/to/project
-
-# Run the autonomous pipeline
-tool-maker pipeline "Create a function to parse CSV files"
-
-# Execute a saved tool
-tool-maker run my-tool
+llm-tool-maker ui --api-only
 ```
 
-## Database Setup
+## Database
 
-By default, tools work in-memory. For persistence and the full pipeline, set up PostgreSQL:
+**Zero-config**: SQLite is used automatically when no `TOOLMAKER_DB_DSN` is set. The database file lives at `~/.config/tool-maker/data.db`.
+
+**PostgreSQL** (for production):
 
 ```bash
-# Install PostgreSQL (Ubuntu/Debian)
-sudo apt install postgresql
-sudo systemctl start postgresql
-
-# Create a database
-sudo -u postgres createdb tool_maker
-
-# Set the connection string (or export it)
-export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/tool_maker"
+export TOOLMAKER_DB_DSN="postgresql://user:pass@localhost:5432/toolmaker"
+llm-tool-maker ui
 ```
 
-Then start the dashboard — migrations run automatically on first connection.
+Migrations run automatically on startup.
 
-### Environment Variables
+## Docker
+
+```bash
+docker compose up
+```
+
+This starts Ollama, PostgreSQL, and the app — reachable at `http://localhost:5000`.
+
+## Environment Variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/tool_maker` | PostgreSQL connection string |
+| `TOOLMAKER_DB_DSN` | `""` (SQLite) | PostgreSQL DSN. Empty = SQLite backend. |
+| `TOOLMAKER_DB_PATH` | `~/.config/tool-maker/data.db` | SQLite database file path |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
 | `OLLAMA_MODEL` | `llama3.2` | Default LLM model |
 | `SANDBOX_TIMEOUT` | `30` | Tool execution timeout in seconds |
@@ -99,65 +147,28 @@ Then start the dashboard — migrations run automatically on first connection.
 
 - **Dashboard** — overview, live terminal, quick stats
 - **Pipeline** — run the 6-stage autonomous pipeline with progress tracking
-- **Execute** — edit and run tools in an IDE-style editor; browse saved tools in the sidebar
+- **Execute** — IDE-style editor with sidebar (Saved + Database tools), command bar, tabbed results
 - **Analyze** — scan a project and inspect its structure
-- **Provider** — configure Ollama model and test prompts
+- **Provider** — configure LLM provider and test prompts
 - **Config** — manage database, migrations, sandbox whitelist, dependency approvals
-- **Docs** — view release notes and this README, rendered as formatted markdown
-
-### API Endpoints
-
-20+ REST endpoints powering the dashboard:
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/pipeline` | Run the autonomous pipeline |
-| GET | `/api/analyze` | Analyze a project path |
-| POST | `/api/execute` | Execute a tool |
-| POST | `/api/fix` | Fix a broken tool via LLM |
-| POST | `/api/refine` | Refine a tool with instructions |
-| POST | `/api/explain` | Get an LLM explanation of execution |
-| GET | `/api/deps/check` | Check tool dependencies |
-| POST | `/api/deps/approve` | Approve a package for auto-install |
-| GET | `/api/db/migrations` | List migration status |
-| POST | `/api/db/migrate` | Run pending migrations |
-
-## Python API
-
-```python
-from tool_maker import ToolMaker
-
-tm = ToolMaker(
-    llm_provider="ollama",
-    base_url="http://localhost:11434",
-    model="llama3.2"
-)
-
-# Analyze a project
-info = tm.analyze_project("/path/to/project")
-
-# Generate and execute a tool
-result = tm.create_and_execute_tool("Parse CSV files and return row count")
-print(result)
-
-# Or run the full pipeline
-result = tm.run_pipeline("Build a CLI tool that counts lines of code")
-print(result)
-```
+- **Docs** — view release notes and README, rendered as formatted markdown
 
 ## Project Structure
 
 ```
 src/tool_maker/
-├── __init__.py          # ToolMaker orchestrator
-├── analyzer/             # AST-based project scanner
-├── cli/                  # CLI argument parsing and handlers
-├── config.py             # Configuration loading
-├── db/                   # PostgreSQL models, connection, migrations
-├── llm/                  # Ollama provider (HTTPX-based)
-├── planner/              # Planner, validator, executor, reviewer
-├── tool/                 # Generator, executor, sandbox, fixer, deps
-└── ui/                   # Flask web app (routes, templates, static)
+├── __init__.py          # Public API exports
+├── client.py            # ToolMakerClient (remote HTTP client)
+├── config.py            # ToolMakerConfigFile
+├── tool_maker.py        # Main orchestrator
+├── tool_fixer.py        # LLM-driven tool fixer
+├── analyzer/            # AST-based project scanner
+├── cli/                 # CLI argument parsing and handlers
+├── db/                  # SQLite + PostgreSQL backends, models, migrations
+├── llm/                 # Ollama, OpenAI, Anthropic providers
+├── planner/             # Planner, validator, executor, reviewer
+├── tool/                # Generator, executor, sandbox, fixer, deps
+└── ui/                  # Flask web app (routes, templates, static)
 ```
 
 ## Development

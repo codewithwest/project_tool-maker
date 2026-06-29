@@ -193,6 +193,150 @@ class OllamaProvider(LLMProvider):
         return _try_parse_json(response, "raw_analysis")
 
 
+class OpenAIProvider(LLMProvider):
+    """OpenAI LLM provider (uses openai package)."""
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: str = "gpt-4o-mini",
+        base_url: Optional[str] = None,
+    ):
+        super().__init__(api_key, model)
+        self.base_url = base_url
+
+    def _client(self):
+        try:
+            import openai
+        except ImportError:
+            raise ImportError(
+                "Missing openai package. Install: pip install openai"
+            )
+        kwargs = {"api_key": self.api_key or "sk-placeholder"}
+        if self.base_url:
+            kwargs["base_url"] = self.base_url
+        return openai.OpenAI(**kwargs)
+
+    def _aclient(self):
+        try:
+            import openai
+        except ImportError:
+            raise ImportError(
+                "Missing openai package. Install: pip install openai"
+            )
+        kwargs = {"api_key": self.api_key or "sk-placeholder"}
+        if self.base_url:
+            kwargs["base_url"] = self.base_url
+        return openai.AsyncOpenAI(**kwargs)
+
+    def generate(self, prompt: str, **kwargs) -> str:
+        client = self._client()
+        messages = kwargs.get("messages") or [
+            {"role": "user", "content": prompt}
+        ]
+        resp = client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            timeout=kwargs.get("timeout", 120),
+        )
+        return resp.choices[0].message.content
+
+    async def async_generate(self, prompt: str, **kwargs) -> str:
+        client = self._aclient()
+        messages = kwargs.get("messages") or [
+            {"role": "user", "content": prompt}
+        ]
+        resp = await client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            timeout=kwargs.get("timeout", 120),
+        )
+        return resp.choices[0].message.content
+
+    def analyze_project(self, project_info: Dict[str, Any]) -> Dict[str, Any]:
+        prompt = _build_analysis_prompt(project_info)
+        response = self.generate(prompt)
+        return _try_parse_json(response, "raw_analysis")
+
+    async def async_analyze_project(
+        self, project_info: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        prompt = _build_analysis_prompt(project_info)
+        response = await self.async_generate(prompt)
+        return _try_parse_json(response, "raw_analysis")
+
+
+class AnthropicProvider(LLMProvider):
+    """Anthropic/Claude LLM provider (uses anthropic package)."""
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: str = "claude-sonnet-4-20250514",
+        base_url: Optional[str] = None,
+    ):
+        super().__init__(api_key, model)
+        self.base_url = base_url
+
+    def _client(self):
+        try:
+            import anthropic
+        except ImportError:
+            raise ImportError(
+                "Missing anthropic package. Install: pip install anthropic"
+            )
+        return anthropic.Anthropic(
+            api_key=self.api_key or "sk-placeholder"
+        )
+
+    def _aclient(self):
+        try:
+            import anthropic
+        except ImportError:
+            raise ImportError(
+                "Missing anthropic package. Install: pip install anthropic"
+            )
+        return anthropic.AsyncAnthropic(
+            api_key=self.api_key or "sk-placeholder"
+        )
+
+    def generate(self, prompt: str, **kwargs) -> str:
+        client = self._client()
+        messages = kwargs.get("messages") or [
+            {"role": "user", "content": prompt}
+        ]
+        resp = client.messages.create(
+            model=self.model,
+            max_tokens=kwargs.get("max_tokens", 4096),
+            messages=messages,
+        )
+        return resp.content[0].text
+
+    async def async_generate(self, prompt: str, **kwargs) -> str:
+        client = self._aclient()
+        messages = kwargs.get("messages") or [
+            {"role": "user", "content": prompt}
+        ]
+        resp = await client.messages.create(
+            model=self.model,
+            max_tokens=kwargs.get("max_tokens", 4096),
+            messages=messages,
+        )
+        return resp.content[0].text
+
+    def analyze_project(self, project_info: Dict[str, Any]) -> Dict[str, Any]:
+        prompt = _build_analysis_prompt(project_info)
+        response = self.generate(prompt)
+        return _try_parse_json(response, "raw_analysis")
+
+    async def async_analyze_project(
+        self, project_info: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        prompt = _build_analysis_prompt(project_info)
+        response = await self.async_generate(prompt)
+        return _try_parse_json(response, "raw_analysis")
+
+
 def _build_analysis_prompt(project_info: Dict[str, Any]) -> str:
     return (
         "Analyze the following project information and provide:\n"
@@ -219,9 +363,14 @@ def get_provider(provider_name: str, **kwargs) -> LLMProvider:
     """Factory function to get an LLM provider."""
     providers = {
         "ollama": OllamaProvider,
+        "openai": OpenAIProvider,
+        "anthropic": AnthropicProvider,
     }
 
     if provider_name.lower() not in providers:
-        raise ValueError(f"Unknown provider: {provider_name}")
+        raise ValueError(
+            f"Unknown provider: {provider_name}. "
+            f"Available: {', '.join(providers)}"
+        )
 
     return providers[provider_name.lower()](**kwargs)

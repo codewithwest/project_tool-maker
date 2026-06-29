@@ -1,6 +1,6 @@
 [project]
 name = "llm-tool-maker"
-version = "0.2.0"
+version = "0.3.0"
 description = "An intelligent tool-making package that leverages LLMs to analyze projects and generate tools"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,8 +24,6 @@ classifiers = [
 dependencies = [
     "requests>=2.31.0",
     "httpx>=0.24.0",
-    "tomli>=2.0.0; python_version < '3.11'",
-    "psycopg2-binary>=2.9.0",
     "flask>=3.1.3",
 ]
 
