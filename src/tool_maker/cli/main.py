@@ -40,6 +40,8 @@ def main():
                            help='Port to bind to')
     ui_parser.add_argument('--debug', '-d', action='store_true',
                            help='Run in debug mode')
+    ui_parser.add_argument('--api-only', action='store_true',
+                           help='Serve API only (no Jinja templates)')
 
     # Version command
     subparsers.add_parser('version', help='Show version information')
@@ -93,6 +95,14 @@ def main():
     migrate_rollback.add_argument('target', help='Target migration name')
     migrate_sub.add_parser('status', help='Show migration status')
 
+    # Init command
+    init_parser = subparsers.add_parser(
+        'init', help='Initialize Tool Maker environment')
+    init_parser.add_argument('--db', choices=['sqlite', 'postgres'], default='sqlite',
+                            help='Database backend (default: sqlite)')
+    init_parser.add_argument('--url', default='',
+                            help='PostgreSQL DSN (required for postgres backend)')
+
     # Pipeline command
     pipeline_parser = subparsers.add_parser('pipeline', help='Run full DB pipeline')
     pipeline_parser.add_argument('goal', help='The goal for the pipeline')
@@ -121,6 +131,8 @@ def main():
         handle_pipeline(args)
     elif args.command == 'dep':
         handle_dep(args)
+    elif args.command == 'init':
+        handle_init(args)
     elif args.command == 'version':
         handle_version()
     else:
@@ -181,6 +193,17 @@ def handle_run(args):
 
 def handle_ui(args):
     """Handle the ui command - launch web UI."""
+    if args.api_only:
+        from tool_maker.ui import create_ui_app
+        app = create_ui_app()
+        # Remove template routes, keep only API
+        rules = list(app.url_map.iter_rules())
+        for rule in rules:
+            if rule.endpoint != 'static' and not rule.rule.startswith('/api/'):
+                app.view_functions.pop(rule.endpoint, None)
+        print(f"  Tool Maker API running at http://{args.host}:{args.port}")
+        app.run(host=args.host, port=args.port, debug=args.debug)
+        return
     try:
         from tool_maker.ui import create_ui_app
     except ImportError as e:
@@ -194,6 +217,87 @@ def handle_ui(args):
 
 def handle_version():
     """Handle the version command."""
+
+
+def handle_init(args):
+    """Initialize Tool Maker environment."""
+    import os
+    from pathlib import Path
+
+    print("")
+    print("  ⚡ LLM Tool Maker — Initialization")
+    print("  " + "─" * 38)
+    print("")
+
+    # 1. Check Ollama
+    import httpx
+    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+    try:
+        r = httpx.get(f"{base_url}/api/tags", timeout=5)
+        r.raise_for_status()
+        models = r.json().get("models", [])
+        print(f"  ✅ Ollama reachable at {base_url}")
+        if models:
+            print(f"     Models available: {', '.join(m['name'] for m in models[:5])}")
+        else:
+            print("     ⚠ No models pulled yet. Run: ollama pull llama3.2")
+    except Exception as e:
+        print(f"  ❌ Ollama not reachable ({e})")
+        print("     Start it with: ollama serve")
+        return
+
+    # 2. Database setup
+    db_backend = args.db
+    if db_backend == "postgres":
+        dsn = args.url or os.environ.get("TOOLMAKER_DB_DSN", "")
+        if not dsn:
+            print("  ❌ PostgreSQL DSN required. Pass --url or set TOOLMAKER_DB_DSN")
+            print("     Example: --url postgresql://user:pass@localhost:5432/toolmaker")
+            return
+        os.environ["TOOLMAKER_DB_DSN"] = dsn
+        print("  ✅ PostgreSQL backend configured")
+    else:
+        os.environ["TOOLMAKER_DB_DSN"] = ""
+        db_path = Path.home() / ".config" / "tool-maker" / "data.db"
+        print(f"  ✅ SQLite backend -> {db_path}")
+
+    # 3. Create config directory
+    config_dir = Path.home() / ".config" / "tool-maker"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    print(f"  ✅ Config directory: {config_dir}")
+
+    # 4. Run migrations
+    try:
+        from tool_maker.db.connection import init_schema
+        from tool_maker.db.migrator import migrate
+        init_schema()
+        applied = migrate()
+        if applied:
+            print(f"  ✅ Migrations applied: {', '.join(applied)}")
+        else:
+            print("  ✅ Database up to date")
+    except Exception as e:
+        print(f"  ❌ Migration failed: {e}")
+        return
+
+    # 5. Write .env if not present
+    env_path = Path(".env")
+    if not env_path.exists():
+        lines = [
+            "# LLM Tool Maker — Environment",
+            f"OLLAMA_BASE_URL={base_url}",
+            "",
+        ]
+        if db_backend == "postgres":
+            lines.insert(1, f"TOOLMAKER_DB_DSN={dsn}")
+        env_path.write_text("\n".join(lines) + "\n")
+        print("  ✅ .env file created")
+    else:
+        print("  ℹ  .env already exists, skipping")
+
+    print("")
+    print("  🚀 Ready! Run: llm-tool-maker ui")
+    print("")
     from tool_maker import __version__
     print(f"Tool Maker version {__version__}")
 

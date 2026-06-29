@@ -1,5 +1,5 @@
 """
-Database configuration for PostgreSQL connection.
+Database configuration.
 Reads from .env files and environment variables.
 """
 
@@ -8,9 +8,8 @@ from dataclasses import dataclass
 
 from tool_maker.dotenv import load_dotenv
 
-DEFAULT_DSN = "postgresql://username:password@localhost:5432/toolmaker"
+DEFAULT_DSN = ""
 
-# Load .env once at import time
 load_dotenv()
 
 
