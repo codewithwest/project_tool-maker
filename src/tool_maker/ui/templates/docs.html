@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% set active = "docs" %}
+{% block head %}
+<style>
+html { scroll-behavior: smooth; }
+.hero-glow {
+  position: absolute; inset: 0;
+  opacity: 0.20;
+  background: radial-gradient(circle at top right, #a855f7, transparent 40%);
+  pointer-events: none;
+}
+.doc-content h1 { font-size: 24px; font-weight: 700; color: #fff; margin: 0 0 8px; }
+.doc-content h2 { font-size: 16px; font-weight: 600; color: #e4e4e7; margin: 28px 0 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.doc-content h3 { font-size: 13px; font-weight: 600; color: #d4d4d8; margin: 20px 0 6px; }
+.doc-content p { font-size: 13px; line-height: 1.7; color: #a1a1aa; margin: 0 0 12px; }
+.doc-content ul, .doc-content ol { margin: 0 0 12px; padding-left: 20px; }
+.doc-content li { font-size: 13px; line-height: 1.7; color: #a1a1aa; margin-bottom: 4px; }
+.doc-content strong { color: #e4e4e7; font-weight: 600; }
+.doc-content code { font-size: 12px; background: rgba(255,255,255,.05); padding: 1px 6px; border-radius: 4px; color: #c4b5fd; }
+.doc-content pre { background: rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.06); border-radius: 12px; padding: 16px; overflow-x: auto; margin: 0 0 16px; }
+.doc-content pre code { background: none; padding: 0; color: #a1a1aa; }
+.doc-content hr { border: none; border-top: 1px solid rgba(255,255,255,.06); margin: 24px 0; }
+.doc-content table { width: 100%; font-size: 13px; border-collapse: collapse; margin: 0 0 16px; }
+.doc-content th { text-align: left; padding: 8px 12px; color: #52525b; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,.06); }
+.doc-content td { padding: 8px 12px; color: #a1a1aa; border-bottom: 1px solid rgba(255,255,255,.04); }
+.doc-content blockquote { border-left: 3px solid rgba(168,85,247,.4); padding: 8px 16px; margin: 0 0 12px; color: #a1a1aa; font-style: italic; background: rgba(168,85,247,.04); border-radius: 0 8px 8px 0; }
+.doc-content h2:first-child { margin-top: 0; }
+
+.doc-tab { font-size: 12px; padding: 8px 18px; border-radius: 10px; color: #52525b; cursor: pointer; transition: all .15s; background: transparent; border: none; font-weight: 500; white-space: nowrap; }
+.doc-tab:hover { color: #a1a1aa; background: rgba(255,255,255,.04); }
+.doc-tab.active { color: #c4b5fd; background: rgba(168,85,247,.1); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-8 mb-6">
+  <div class="hero-glow"></div>
+  <div class="relative">
+    <div class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs bg-violet-500/10 text-violet-300 mb-4">
+      📖 Documentation
+    </div>
+    <h1 class="text-3xl font-bold text-white mb-2">Docs</h1>
+    <p class="text-zinc-400 max-w-xl">Release notes and documentation for LLM Tool Maker.</p>
+  </div>
+</div>
+
+<div class="flex flex-wrap gap-1.5 mb-5" id="doc-tabs">
+  {% for entry in entries %}
+  <button class="doc-tab{% if loop.first %} active{% endif %}" data-path="{{ entry.path }}">{{ entry.name }}</button>
+  {% endfor %}
+</div>
+
+<div id="doc-viewer" class="doc-content bg-white/[0.02] border border-white/10 rounded-2xl p-8">
+  {% if entries %}
+  <div class="flex items-center justify-center py-16 text-zinc-500">
+    <span class="spinner-sm mr-3"></span> Loading…
+  </div>
+  {% else %}
+  <div class="text-center py-16">
+    <div class="text-3xl mb-3">📄</div>
+    <p class="text-sm text-zinc-500">No documentation files found.</p>
+  </div>
+  {% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+(function() {
+  var tabs = document.querySelectorAll('.doc-tab');
+  var viewer = document.getElementById('doc-viewer');
+
+  function loadDoc(path) {
+    viewer.innerHTML = '<div class="flex items-center justify-center py-16 text-zinc-500"><span class="spinner-sm mr-3"></span> Loading…</div>';
+    fetch('/api/docs/' + path)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.content) {
+          var html = marked.parse(data.content);
+          viewer.innerHTML = html;
+        } else {
+          viewer.innerHTML = '<div class="text-center py-16"><div class="text-3xl mb-3">❌</div><p class="text-sm text-red-400">' + (data.error || 'Not found') + '</p></div>';
+        }
+      })
+      .catch(function(err) {
+        viewer.innerHTML = '<div class="text-center py-16"><div class="text-3xl mb-3">❌</div><p class="text-sm text-red-400">' + err.message + '</p></div>';
+      });
+  }
+
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      tabs.forEach(function(t) { t.classList.remove('active'); });
+      this.classList.add('active');
+      loadDoc(this.dataset.path);
+    });
+  });
+
+  // load first tab
+  if (tabs.length) loadDoc(tabs[0].dataset.path);
+})();
+</script>
+{% endblock %}

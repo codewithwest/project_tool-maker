@@ -215,6 +215,69 @@ def pipeline_page():
     return render_template("pipeline.html", result=None, goal="")
 
 
+@bp.route("/docs")
+def docs_index():
+    """List available documentation files."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent.parent.parent
+    docs_dir = root / "docs"
+    entries = []
+    if docs_dir.exists():
+        for f in sorted(docs_dir.rglob("*.md")):
+            rel = f.relative_to(docs_dir)
+            entries.append({
+                "path": str(rel),
+                "name": rel.stem.replace("-", " ").replace("_", " ").title(),
+                "size": f.stat().st_size,
+            })
+    # include root README
+    readme = root / "README.md"
+    if readme.exists():
+        entries.insert(0, {
+            "path": "__README__.md",
+            "name": "Readme",
+            "size": readme.stat().st_size,
+        })
+    return render_template("docs.html", entries=entries)
+
+
+@bp.route("/api/docs/<path:doc_path>")
+def api_docs_view(doc_path):
+    """Return documentation markdown content as JSON."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent.parent.parent
+    if doc_path == "__README__.md":
+        target = root / "README.md"
+    else:
+        docs_dir = root / "docs"
+        target = (docs_dir / doc_path).resolve()
+        if not str(target).startswith(str(docs_dir.resolve())):
+            return jsonify({"error": "Not found"}), 404
+    if not target.exists():
+        return jsonify({"error": "Not found"}), 404
+    content = target.read_text(encoding="utf-8")
+    return jsonify({"content": content, "path": doc_path})
+
+
+@bp.route("/docs/<path:doc_path>")
+def docs_view(doc_path):
+    """Render a documentation markdown file."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent.parent.parent
+    if doc_path == "__README__.md":
+        target = root / "README.md"
+    else:
+        docs_dir = root / "docs"
+        target = (docs_dir / doc_path).resolve()
+        if not str(target).startswith(str(docs_dir.resolve())):
+            return "Not found", 404
+    if not target.exists():
+        return "Not found", 404
+    content = target.read_text(encoding="utf-8")
+    name = target.stem.replace("-", " ").replace("_", " ").title()
+    return render_template("docs.html", entries=None, content=content, name=name, path=doc_path)
+
+
 # ── API endpoints ────────────────────────────────────────────────────────
 
 
