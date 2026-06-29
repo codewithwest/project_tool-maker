@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from tool_maker.dotenv import load_dotenv
 
-DEFAULT_DSN = "postgresql://localhost:5432/toolmaker"
+DEFAULT_DSN = "postgresql://username:password@localhost:5432/toolmaker"
 
 # Load .env once at import time
 load_dotenv()
