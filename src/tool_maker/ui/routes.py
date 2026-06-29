@@ -12,7 +12,6 @@ from typing import Any, Dict, Optional
 from flask import Blueprint, Flask, Response, flash, jsonify, render_template, request
 
 from tool_maker import ToolMaker
-from tool_maker.tool.executor import ToolExecutor
 
 from .log_handler import get_log_handler
 
@@ -275,7 +274,8 @@ def docs_view(doc_path):
         return "Not found", 404
     content = target.read_text(encoding="utf-8")
     name = target.stem.replace("-", " ").replace("_", " ").title()
-    return render_template("docs.html", entries=None, content=content, name=name, path=doc_path)
+    return render_template(
+        "docs.html", entries=None, content=content, name=name, path=doc_path)
 
 
 # ── API endpoints ────────────────────────────────────────────────────────

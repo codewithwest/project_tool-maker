@@ -70,7 +70,6 @@ _MODULE_TO_PACKAGE: Dict[str, str] = {
     "nacl": "PyNaCl",
     "zmq": "pyzmq",
     "dateutil": "python-dateutil",
-    "dotenv": "python-dotenv",
     "markdown": "Markdown",
     "mistune": "mistune",
     "pymongo": "pymongo",

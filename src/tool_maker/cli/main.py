@@ -56,11 +56,11 @@ def main():
                                              help='Add modules to sandbox whitelist')
     config_whitelist.add_argument('modules', nargs='+',
                                   help='Module names to allow')
-    config_approve = config_sub.add_parser('approve-dep',
-                                           help='Approve a pip package for auto-install')
+    config_approve = config_sub.add_parser(
+        'approve-dep', help='Approve a pip package for auto-install')
     config_approve.add_argument('module', help='Module name to approve')
-    config_auto = config_sub.add_parser('auto-approve',
-                                        help='Enable/disable silent auto-approve of deps')
+    config_auto = config_sub.add_parser(
+        'auto-approve', help='Enable/disable silent auto-approve of deps')
     config_auto.add_argument('value', choices=['on', 'off'],
                              help='Enable or disable auto-approve')
 
@@ -71,8 +71,7 @@ def main():
                                      help='Install deps for a tool')
     dep_install.add_argument('tool_name', nargs='?', default=None,
                              help='Tool name (omit for all tools)')
-    dep_sync = dep_sub.add_parser('sync',
-                                  help='Install deps for all tools in DB')
+    dep_sub.add_parser('sync', help='Install deps for all tools in DB')
     dep_approve = dep_sub.add_parser('approve',
                                      help='Approve a module for auto-install')
     dep_approve.add_argument('module', help='Module name to approve')
@@ -317,7 +316,7 @@ def handle_pipeline(args):
 
 def handle_dep(args):
     """Handle dependency commands."""
-    from tool_maker.tool.deps import missing_deps, install, scan_imports, is_third_party
+    from tool_maker.tool.deps import scan_imports, is_third_party
 
     if args.dep_cmd == 'approve':
         from tool_maker.config import ToolMakerConfigFile

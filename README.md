@@ -1,31 +1,23 @@
-# Tool Maker Package
+# LLM Tool Maker
 
 [![CI](https://github.com/codewithwest/project_tool-maker/actions/workflows/ci.yml/badge.svg)](https://github.com/codewithwest/project_tool-maker/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/llm-tool-maker.svg)](https://pypi.org/project/llm-tool-maker/)
 [![Python versions](https://img.shields.io/pypi/pyversions/llm-tool-maker.svg)](https://pypi.org/project/llm-tool-maker/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An intelligent tool-making package that leverages LLMs to analyze projects and generate tools.
-
-## Overview
-
-Tool Maker is a Python package that:
-- Analyzes projects to understand their structure and capabilities
-- Uses LLMs to formulate intelligent prompts and generate tools
-- Can be integrated into Flask applications or used standalone
-- Provides a CLI for easy command-line usage
+An intelligent tool-making system that uses local LLMs (via Ollama) to analyze projects, generate tools, and execute them in a sandboxed environment — all through a modern web dashboard or CLI.
 
 ## Features
 
-- **Project Analysis**: Automatically scans and analyzes project structure
-- **LLM Integration**: Supports multiple LLM providers (OpenAI, Anthropic, local models)
-- **Tool Generation**: Creates appropriate tools based on project capabilities
-- **Flask Integration**: Easy integration with Flask applications
-- **CLI Interface**: Command-line tool for quick usage
+- **Project Analysis** — AST-based scanning of project structure, imports, and entry points
+- **LLM Tool Generation** — generates Python tools from natural language descriptions using local LLMs
+- **Sandboxed Execution** — subprocess runner with module whitelist, no network, and configurable timeout
+- **Autonomous Pipeline** — 6-stage DB-backed pipeline: Analyse → Plan → Validate → Implement → Test → Review, with auto-fix loop
+- **Web Dashboard** — 6-page glass-morphism UI (Dashboard, Pipeline, Execute, Analyze, Provider, Config, Docs)
+- **Dependency Management** — auto-detects imports, maps to pip packages, auto-installs via `uv`
+- **PostgreSQL Persistence** — saves tools, plans, executions, and reviews; migration system included
 
 ## Installation
-
-### Using uv (Recommended)
 
 ```bash
 # Install globally
@@ -35,130 +27,147 @@ uv tool install llm-tool-maker
 uv add llm-tool-maker
 ```
 
-### From Source
+### From source
 
 ```bash
 git clone https://github.com/codewithwest/project_tool-maker.git
-cd tool-maker
+cd project_tool-maker
 uv sync
-uv run tool-maker --help
 ```
 
 ## Quick Start
 
-### Standalone Usage
+### 1. Start Ollama
+
+```bash
+ollama pull llama3.2  # or any model you prefer
+```
+
+### 2. Launch the dashboard
+
+```bash
+tool-maker ui
+```
+
+Opens at `http://localhost:5000`.
+
+### 3. Or use the CLI
+
+```bash
+# Analyze a project
+tool-maker analyze /path/to/project
+
+# Run the autonomous pipeline
+tool-maker pipeline "Create a function to parse CSV files"
+
+# Execute a saved tool
+tool-maker run my-tool
+```
+
+## Database Setup
+
+By default, tools work in-memory. For persistence and the full pipeline, set up PostgreSQL:
+
+```bash
+# Install PostgreSQL (Ubuntu/Debian)
+sudo apt install postgresql
+sudo systemctl start postgresql
+
+# Create a database
+sudo -u postgres createdb tool_maker
+
+# Set the connection string (or export it)
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/tool_maker"
+```
+
+Then start the dashboard — migrations run automatically on first connection.
+
+### Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/tool_maker` | PostgreSQL connection string |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
+| `OLLAMA_MODEL` | `llama3.2` | Default LLM model |
+| `SANDBOX_TIMEOUT` | `30` | Tool execution timeout in seconds |
+| `MAX_FIX_ATTEMPTS` | `3` | Auto-fix loop retry limit |
+| `TOOL_MAKER_CONFIG` | `~/.config/tool-maker/config.toml` | Config file path |
+
+## Web Dashboard
+
+### Pages
+
+- **Dashboard** — overview, live terminal, quick stats
+- **Pipeline** — run the 6-stage autonomous pipeline with progress tracking
+- **Execute** — edit and run tools in an IDE-style editor; browse saved tools in the sidebar
+- **Analyze** — scan a project and inspect its structure
+- **Provider** — configure Ollama model and test prompts
+- **Config** — manage database, migrations, sandbox whitelist, dependency approvals
+- **Docs** — view release notes and this README, rendered as formatted markdown
+
+### API Endpoints
+
+20+ REST endpoints powering the dashboard:
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/pipeline` | Run the autonomous pipeline |
+| GET | `/api/analyze` | Analyze a project path |
+| POST | `/api/execute` | Execute a tool |
+| POST | `/api/fix` | Fix a broken tool via LLM |
+| POST | `/api/refine` | Refine a tool with instructions |
+| POST | `/api/explain` | Get an LLM explanation of execution |
+| GET | `/api/deps/check` | Check tool dependencies |
+| POST | `/api/deps/approve` | Approve a package for auto-install |
+| GET | `/api/db/migrations` | List migration status |
+| POST | `/api/db/migrate` | Run pending migrations |
+
+## Python API
 
 ```python
 from tool_maker import ToolMaker
 
-# Initialize with your LLM provider
 tm = ToolMaker(
-    llm_provider="openai",
-    api_key="your-api-key"
+    llm_provider="ollama",
+    base_url="http://localhost:11434",
+    model="llama3.2"
 )
 
 # Analyze a project
-project_info = tm.analyze_project("/path/to/project")
+info = tm.analyze_project("/path/to/project")
 
-# Create and execute a tool
-result = tm.create_and_execute_tool("Create a function to parse CSV files")
+# Generate and execute a tool
+result = tm.create_and_execute_tool("Parse CSV files and return row count")
 print(result)
-```
 
-### Flask Integration
-
-```python
-from flask import Flask, request, jsonify
-from tool_maker.flask import ToolMakerExtension
-
-app = Flask(__name__)
-
-# Initialize Tool Maker
-tm = ToolMakerExtension(
-    app,
-    llm_provider="openai",
-    api_key="your-api-key"
-)
-
-@app.route('/analyze', methods=['POST'])
-def analyze():
-    project_path = request.json.get('project_path')
-    return jsonify(tm.analyze_project(project_path))
-
-@app.route('/tools', methods=['POST'])
-def create_tool():
-    query = request.json.get('query')
-    return jsonify(tm.create_and_execute_tool(query))
+# Or run the full pipeline
+result = tm.run_pipeline("Build a CLI tool that counts lines of code")
+print(result)
 ```
 
 ## Project Structure
 
 ```
-tool_maker/
-├── analyzer/      # Project analysis module
-├── llm/          # LLM integration module
-├── tool/         # Tool generation and execution
-├── flask/        # Flask integration
-└── cli/          # Command-line interface
-```
-
-## Configuration
-
-### LLM Providers
-
-Tool Maker supports multiple LLM providers:
-
-```python
-# OpenAI
-tm = ToolMaker(llm_provider="openai", api_key="sk-...")
-
-# Anthropic (Claude)
-tm = ToolMaker(llm_provider="anthropic", api_key="sk-...")
-
-# Local LLM (e.g., Ollama)
-tm = ToolMaker(
-    llm_provider="ollama",
-    base_url="http://localhost:11434",
-    model="llama2"
-)
+src/tool_maker/
+├── __init__.py          # ToolMaker orchestrator
+├── analyzer/             # AST-based project scanner
+├── cli/                  # CLI argument parsing and handlers
+├── config.py             # Configuration loading
+├── db/                   # PostgreSQL models, connection, migrations
+├── llm/                  # Ollama provider (HTTPX-based)
+├── planner/              # Planner, validator, executor, reviewer
+├── tool/                 # Generator, executor, sandbox, fixer, deps
+└── ui/                   # Flask web app (routes, templates, static)
 ```
 
 ## Development
 
 ```bash
-# Set up development environment
 uv sync
-uv run pytest
-
-# Run linter
 uv run ruff check .
-
-# Format code
-uv run black .
+uv run pytest
 ```
-
-## Examples
-
-See the `examples/` directory for more detailed examples:
-- `basic_usage.py` - Standalone usage
-- `flask_integration.py` - Flask integration
-- `custom_analyzer.py` - Custom project analysis
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- Built with [uv](https://github.com/astral-sh/uv) for fast Python package management
-- Inspired by AI-powered code generation tools
+MIT
