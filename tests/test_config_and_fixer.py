@@ -20,8 +20,8 @@ class TestToolMakerConfigFile:
         assert cfg.add_whitelist("sqlite3") is False
         assert "sqlite3" in cfg.extra_whitelist
 
-    def test_save_is_noop(self, tmp_path, monkeypatch):
-        """save() is a no-op — config is stored in DB, not file."""
+    def test_save_and_load(self, tmp_path, monkeypatch):
+        """save() writes config to file; load() reads it back."""
         config_path = tmp_path / "config.json"
         monkeypatch.setattr(
             "tool_maker.config._get_config_path",
@@ -29,12 +29,10 @@ class TestToolMakerConfigFile:
         )
         cfg = ToolMakerConfigFile(output_dir="/tmp/tools", extra_whitelist=["foo"])
         cfg.save()
-        # File should NOT exist — save() does nothing
-        assert not config_path.exists()
-        # load() always returns defaults regardless of filesystem state
+        assert config_path.exists()
         loaded = ToolMakerConfigFile.load()
-        assert loaded.output_dir == "./generated_tools"
-        assert loaded.extra_whitelist == []
+        assert loaded.output_dir == "/tmp/tools"
+        assert loaded.extra_whitelist == ["foo"]
 
 
 class TestToolFixer:
